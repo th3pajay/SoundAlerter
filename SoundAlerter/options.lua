@@ -388,79 +388,80 @@ function SoundAlerter:OnOptionsCreate()
 						type = 'group',
 						inline = true,
 						name = "|cffFF7D0ADruid|r",
-						order = 4,
-						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1116974,1398191},"auraApplied"),	
-					},
-					paladin = {
-						type = 'group',
-						inline = true,
-						name = "|cffF58CBAPaladin|r",
 						order = 5,
-						args = listOption({1131821,1110278,1101044,11642,1106940,1100498,1164205,1154428},"auraApplied")
-					},
-					rogue = {
-						type = 'group',
-						inline = true,
-						name = "|cffFFF569Rogue|r",
-						order = 6,
-						args = listOption({1111305,1114177,1151713,1131224,1113750,1126669},"auraApplied")
-					},
-					warrior	= {
-						type = 'group',
-						inline = true,
-						name = "|cffC79C6EWarrior|r",
-						order = 7,
-						args = listOption({1101719,1155694,1100871,1112975,1118499,1120230,1123920,1112328,1146924,1112292},"auraApplied")
-					},
-					priest	= {
-						type = 'group',
-						inline = true,
-						name = "|cffFFFFFFPriest|r",
-						order = 8,
-						args = listOption({1133206,1110060,1106346,1147585,1114751,1147788},"auraApplied")
-					},
-					shaman	= {
-						type = 'group',
-						inline = true,
-						name = "|cff0070DEShaman|r",
-						order = 9,
-						args = listOption({1130823,1100379,1157960,1116166},"auraApplied"),
-					},
-					mage = {
-						type = 'group',
-						inline = true,
-						name = "|cff69CCF0Mage|r",
-						order = 10,
-						args = listOption({1145438,1112042,1112472,1112043,1128682},"auraApplied"),
+						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1116974,1398191},"auraApplied"),	
 					},
 					dk	= {
 						type = 'group',
 						inline = true,
 						name = "|cffC41F3BDeath Knight|r",
-						order = 11,
+						order = 6,
 						args = listOption({1149039,1148792,1155233,1148707,1149222,1149016},"auraApplied"),
 					},
 					hunter = {
 						type = 'group',
 						inline = true,
 						name = "|cffABD473Hunter|r",
-						order = 12,
+						order = 7,
 						args = listOption({1134471,1119263,1153480},"auraApplied"),
 					},
-					races = {
+					mage = {
 						type = 'group',
 						inline = true,
-						name = "|cffFFFFFFGeneral Races|r",
-						order = 14,
-						args = listOption({58984,1126297,1120594,1133702,7744,1128880},"auraApplied"),
+						name = "|cff69CCF0Mage|r",
+						order = 8,
+						args = listOption({1145438,1112042,1112472,1112043,1128682},"auraApplied"),
+					},
+					paladin = {
+						type = 'group',
+						inline = true,
+						name = "|cffF58CBAPaladin|r",
+						order = 9,
+						args = listOption({1131821,1110278,1101044,11642,1106940,1100498,1164205,1154428},"auraApplied")
+					},
+					priest	= {
+						type = 'group',
+						inline = true,
+						name = "|cffFFFFFFPriest|r",
+						order = 10,
+						args = listOption({1133206,1110060,1106346,1147585,1114751,1147788},"auraApplied")
+					},
+					rogue = {
+						type = 'group',
+						inline = true,
+						name = "|cffFFF569Rogue|r",
+						order = 11,
+						args = listOption({1111305,1114177,1151713,1131224,1113750,1126669},"auraApplied")
+					},
+					shaman	= {
+						type = 'group',
+						inline = true,
+						name = "|cff0070DEShaman|r",
+						order = 12,
+						args = listOption({1130823,1100379,1157960,1116166},"auraApplied"),
+					},
+					warrior	= {
+						type = 'group',
+						inline = true,
+						name = "|cffC79C6EWarrior|r",
+						order = 13,
+						args = listOption({1101719,1155694,1100871,1112975,1118499,1120230,1123920,1112328,1146924,1112292},"auraApplied")
 					},
 					warlock	= {
 						type = 'group',
 						inline = true,
 						name = "|cff9482C9Warlock|r",
-						order = 13,
+						order = 14,
 						args = listOption({1117941},"auraApplied"),
 						},
+					races = {
+						type = 'group',
+						inline = true,
+						name = "|cffFFFFFFGeneral Races|r",
+						order = 15,
+						args = listOption({58984,1126297,1120594,1133702,7744,1128880},"auraApplied"),
+					},
+					
 					}
 				},
 			spellAuraRemoved = {
@@ -473,12 +474,33 @@ function SoundAlerter:OnOptionsCreate()
 				disabled = function() return sadb.auraRemoved end,
 				order = 3,
 				args = {
-					warrior = {
+					druid = {
 						type = 'group',
 						inline = true,
-						name = "|cffC79C6EWarrior|r",
+						name = "|cffFF7D0ADruid|r",
+						order = 1,
+						args = listOption({1153201},"auraRemoved"),
+					},
+					dk = {
+						type = 'group',
+						inline = true,
+						name = "|cffC41F3BDeath Knight|r",
+						order = 2,
+						args = listOption({1148707,1148792,1149039},"auraRemoved"),
+					},
+					hunter = {
+						type = 'group',
+						inline = true,
+						name = "|cffABD473Hunter|r",
+						order = 3,
+						args = listOption({1119263,1134471},"auraRemoved"),
+					},
+					mage = {
+						type = 'group',
+						inline = true,
+						name = "|cff69CCF0Mage|r",
 						order = 4,
-						args = listOption({1101719,1100871,1112292,1146924},"auraRemoved"),
+						args = listOption({1145438},"auraRemoved"),
 					},
 					paladin = {
 						type = 'group',
@@ -487,48 +509,27 @@ function SoundAlerter:OnOptionsCreate()
 						order = 5,
 						args = listOption({1100498,1110278,11642},"auraRemoved"),
 					},
-					rogue = {
-						type = 'group',
-						inline = true,
-						name = "|cffFFF569Rogue|r",
-						order = 6,
-						args = listOption({1131224,1126669},"auraRemoved"),
-					},
 					priest	= {
 						type = 'group',
 						inline = true,
 						name = "|cffFFFFFFPriest|r",
-						order = 7,
+						order = 6,
 						args = listOption({1147585,1133206},"auraRemoved"),
 					},
-					mage = {
+					rogue = {
 						type = 'group',
 						inline = true,
-						name = "|cff69CCF0Mage|r",
-						order = 9,
-						args = listOption({1145438},"auraRemoved"),
+						name = "|cffFFF569Rogue|r",
+						order = 7,
+						args = listOption({1131224,1126669},"auraRemoved"),
 					},
-					dk = {
+					warrior = {
 						type = 'group',
 						inline = true,
-						name = "|cffC41F3BDeath Knight|r",
-						order = 10,
-						args = listOption({1148707,1148792,1149039},"auraRemoved"),
-					},
-					druid = {
-						type = 'group',
-						inline = true,
-						name = "|cffFF7D0ADruid|r",
-						order = 11,
-						args = listOption({1153201},"auraRemoved"),
-					},
-					hunter = {
-						type = 'group',
-						inline = true,
-						name = "|cffABD473Hunter|r",
-						order = 12,
-						args = listOption({1119263,1134471},"auraRemoved"),
-					},
+						name = "|cffC79C6EWarrior|r",
+						order = 8,
+						args = listOption({1101719,1100871,1112292,1146924},"auraRemoved"),
+					},	
 				}
 			},
 			spellCastStart = {
@@ -656,7 +657,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cff69CCF0Mage|r",
 						order = 8,
-						args = listOption({1144445,1112051,1144572,1111958,1102139,1100066},"castSuccess"),
+						args = listOption({1144445,1112051,1144572,1111958,1102139,1100066,1398172},"castSuccess"),
 					},
 					dk	= {
 						type = 'group',
