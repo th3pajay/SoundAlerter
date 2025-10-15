@@ -1,0 +1,901 @@
+﻿--[[
+SoundAlerter by Trolollolol
+If you have any issues or concerns with the addon, Send me an ingame message at  Trolollol - Realm:Sargeras Server:Molten-WoW.com
+Bugs: Check auraApplied for strangulate
+]]
+
+SoundAlerter = LibStub("AceAddon-3.0"):NewAddon("SoundAlerter", "AceEvent-3.0","AceConsole-3.0","AceTimer-3.0")
+local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+local AceConfig = LibStub("AceConfig-3.0")
+local L = LibStub("AceLocale-3.0"):GetLocale("SoundAlerter")
+local self, SoundAlerter = SoundAlerter, SoundAlerter
+local sadb
+local playerName = UnitName("player")
+
+--warning to non-english clients
+if ((GetLocale() == "zhCN") or (GetLocale() == "zhTW") or (GetLocale() == "koKR") or (GetLocale() == "frFR") or (GetLocale() == "ruRU")) then
+DEFAULT_CHAT_FRAME:AddMessage("|cffFF7D0ASoundAlerter|r Currently only works on English and Spanish Clients only, sorry. If you would like to get involved, send a PM to shamwoww on forum.molten-wow.com or send a message to |cff0070DETrolollolol|r - Sargeras - Horde - Molten-WoW.com");
+end
+
+SA_LOCALEPATH = {
+	enUS = "Interface\\Addons\\SoundAlerter\\Voice\\",
+	esES = "Interface\\Addons\\SoundAlerter\\Voice_ES\\",
+}
+self.SA_LOCALEPATH = SA_LOCALEPATH
+local SA_LANGUAGE = {
+	["Interface\\Addons\\SoundAlerter\\Voice_ES\\"] = "Spanish (Limited)",
+	["Interface\\Addons\\SoundAlerter\\Voice\\"] = "English",
+}
+self.SA_LANGUAGE = SA_LANGUAGE
+local SA_CHATGROUP = {
+	["SAY"] = L["Say"],
+	["PARTY"] = L["Party"],
+	["RAID"] = L["Raid"],
+	["BATTLEGROUND"] = L["Battleground"],
+}
+self.SA_CHATGROUP = SA_CHATGROUP
+local SA_EVENT = {
+	SPELL_CAST_SUCCESS = L["Instant spell was successfully casted"],
+	SPELL_CAST_START = L["Spell is casting"],
+	SPELL_AURA_APPLIED = L["Spell buff/debuff applied"],
+	SPELL_AURA_REMOVED = L["Spell buff/debuff down"],
+	SPELL_INTERRUPT = L["Spell is interrupted"],
+	SPELL_SUMMON = L["Summoning spell"],
+	SPELL_DAMAGE = L["Spell cast successfully damaged"]
+	--UNIT_AURA = "Unit aura changed",
+}
+self.SA_EVENT = SA_EVENT
+local SA_UNIT = {
+	any = L["Any"],
+	player = L["Player"],
+	target = L["Target"],
+	focus = L["Focus"],
+	mouseover = L["Mouseover"],
+	party = L["Party"],
+--	raid = L["Raid"],
+	arena = L["Arena (enemy)"],
+--	boss = L["Boss"],
+	custom = L["Custom"], 
+}
+self.SA_UNIT = SA_UNIT
+local SA_TYPE = {
+	[COMBATLOG_FILTER_EVERYTHING] = L["Any"],
+	[COMBATLOG_FILTER_FRIENDLY_UNITS] = L["Friendly"],
+	[COMBATLOG_FILTER_HOSTILE_PLAYERS] = L["Hostile player"],
+	[COMBATLOG_FILTER_HOSTILE_UNITS] = L["Hostile non-player"],
+	[COMBATLOG_FILTER_NEUTRAL_UNITS] = L["Neutral"],
+	[COMBATLOG_FILTER_ME] = L["Myself"],
+	[COMBATLOG_FILTER_MINE] = L["My non-unit object (totem)"],
+	[COMBATLOG_FILTER_MY_PET] = L["My pet"],
+}
+self.SA_TYPE = SA_TYPE
+local sourcetype,sourceuid,desttype,destuid = {},{},{},{}
+local function log(msg) DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF22SA|r:"..msg) end
+
+-- Spell list is moved here to ensure it's loaded before OnInitialize is called.
+function SoundAlerter:GetSpellList () 
+	return {
+		auraApplied = {					-- aura applied [11spellid] = ".mp3 file name",
+			--Races
+			[1158984] = "Shadowmeld",
+			[1126297] = "berserking",
+			[1120594] = "stoneform",
+			[1120572] = "BloodFury",
+			[1133702] = "BloodFury",
+			[117744] = "willoftheforsaken",
+			[1128880] = "giftofthenaaru",
+			--Druid
+			[1161336] = "survivalInstincts",
+			[1129166] = "innervate",
+			[1122812] = "barkskin",
+			[1117116] = "naturesSwiftness",
+			[1117329] = "naturesGrasp",	--Natures Grasp rank 6
+			[1127009] = "naturesGrasp",	--Natures Grasp rank 7
+			[1153312] = "naturesGrasp",	--Natures Grasp rank 8
+			[1122842] = "frenziedRegeneration",
+			[1148505] = "starfall",	--starfall rank 1
+			[1153199] = "starfall",	--starfall rank 2
+			[1153200] = "starfall",	--starfall rank 3
+			[1153201] = "starfall",	--starfall rank 4
+			[1150334] = "berserk",
+			[111850] = "dash",	--dash rank 1
+			[119821] = "dash",	--dash rank 2
+			[1133357] = "dash",	--dash rank 3
+			--Paladin
+			[1131821] = "auraMastery",
+			[111022] = "handOfProtection",	--Hand of Protection rank 1
+			[115599] = "handOfProtection",	--Hand of Protection rank 2
+			[1110278] = "handOfProtection",	--Hand of Protection rank 3
+			[111044] = "handOfFreedom",
+			[11642] = "divineShield",
+			[116940] = "handofsacrifice", --don't know
+			[1164205] = "divineSacrifice",
+			[11498] = "DivineProtection", 
+			[1154428] = "divinePlea",
+			--Rogue
+			[112983] = "sprint",	--Sprint rank 1
+			[118696] = "sprint",	--Sprint rank 3
+			[1111305] = "sprint",	--Sprint rank 2
+			[1151713] = "shadowDance",
+			[1131224] = "cloakOfShadows",
+			[1113750] = "adrenalineRush",
+			[115277] = "evasion", --Evasion rank 1
+			[1126669] = "evasion", --Evasion rank 2
+			[1114177] = "coldBlood",
+			--Warrior
+			[1155694] = "EnragedRegeneration",
+			[111719] = "Recklessness",
+			[11871] = "shieldWall",
+			[1112975] = "lastStand",
+			[1118499] = "berserkerRage",
+			[1120230] = "Retaliation",
+			[1123920] = "spellReflection",
+			[1112328] = "sweepingStrikes",
+			[1146924] = "bladestorm",
+			[1112292] = "deathWish",
+			--Priest
+			[1133206] = "painSuppression",
+			[1110060] = "powerInfusion",
+			[116346] = "fearWard",
+			[1147585] = "dispersion",
+			[1114751] = "innerfocus",
+			[1147788] = "GuardianSpirit",
+			--Shaman
+			[1130823] = "shamanisticRage",
+			[11974] = "earthShield",	--Earth Shield rank 1
+			[1132593] = "earthShield",	--Earth Shield rank 2
+			[1132594] = "earthShield",	--Earth Shield rank 3
+			[1149283] = "earthShield",	--Earth Shield rank 4
+			[1149284] = "earthShield",	--Earth Shield rank 5
+			[1152127] = "waterShield",	--Water Shield rank 1
+			[1152129] = "waterShield",	--Water Shield rank 2
+			[1152131] = "waterShield",	--Water Shield rank 3
+			[1152134] = "waterShield",	--Water Shield rank 4
+			[1152136] = "waterShield",	--Water Shield rank 5
+			[1152138] = "waterShield",	--Water Shield rank 6
+			[1124398] = "waterShield",	--Water Shield rank 7
+			[1133736] = "waterShield",	--Water Shield rank 8
+			[1157960] = "waterShield",	--Water Shield rank 9
+			[1116166] = "ElementalMastery",
+			--Mage
+			[1145438] = "iceBlock",
+			[1112042] = "arcanePower",
+			[1112472] = "icyveins",
+			[1112043] = "PresenceofMind",
+			[1128682] = "combustion",
+			--DK
+			[1149039] = "lichborne",
+			[1148792] = "iceboundFortitude",
+			[1155233] = "vampiricBlood",
+			[1148707] = "antimagicshell",
+			[1149222] = "boneshield",
+			[1149016] = "hysteria",
+			--Hunter
+			[1153480] = "roarofsacrifice",
+			[1134471] = "theBeastWithin",
+			[1119263] = "deterrence",	
+			--Warlock
+			[1117941] = "shadowtrance",
+		},
+		auraRemoved = {
+			--Warrior
+			[1146924] = "bladestormdown",
+			[111719] = "RecklessnessDown",
+			[11871] = "shieldWallDown",
+			[1112292] = "deathWishdown",
+			--Paladin
+			[11498] = "DivineProtectionDown", 
+			[1110278] = "protectionDown",
+			[11642] = "bubbleDown",
+			--Rogue
+			[1131224] = "cloakDown",
+			[1126669] = "evasionDown",
+			--Priest
+			[1133206] = "PSDown",
+			[1147585] = "dispersionDown",
+			--Mage
+			[1145438] = "iceBlockDown",
+			--DK
+			[1148792] = "iceboundFortitudeDown",
+			[1149039] = "lichborneDown",
+			[1148707] = "antimagicshelldown",
+			--Druid
+			[1148505] = "Starfalldown",	--starfall rank 1
+			[1153199] = "Starfalldown",	--starfall rank 2
+			[1153200] = "Starfalldown",	--starfall rank 3
+			[1153201] = "Starfalldown",	--starfall rank 4
+			--Hunter
+			[1119263] = "Deterrencedown",
+			[1134471] = "beastwithindown",
+		},
+		castStart = {
+			--general
+			[11635] = "bigHeal",	--Holy Light rank 1
+			[11639] = "bigHeal",	--Holy Light rank 2
+			[11647] = "bigHeal",	--Holy Light rank 3
+			[111026] = "bigHeal",	--Holy Light rank 4
+			[111042] = "bigHeal",	--Holy Light rank 5
+			[113472] = "bigHeal",	--Holy Light rank 6
+			[1110328] = "bigHeal",	--Holy Light rank 7
+			[1110329] = "bigHeal",	--Holy Light rank 8
+			[1125292] = "bigHeal",	--Holy Light rank 9
+			[1127135] = "bigHeal",	--Holy Light rank 10
+			[1127136] = "bigHeal",	--Holy Light rank 11
+			[1148782] = "bigHeal",	--Holy Light rank 12
+			[112054] = "bigHeal",		--Heal rank 1
+			[112055] = "bigHeal",		--Heal rank 2
+			[116063] = "bigHeal",		--Heal rank 3
+			[116064] = "bigHeal",		--Heal rank 4
+			[112060] = "bigHeal",		--Greater Heal rank 1
+			[11332] = "bigHeal",	--Healing Wave rank 2
+			[11547] = "bigHeal",	--Healing Wave rank 3
+			[11913] = "bigHeal",	--Healing Wave rank 4
+			[11939] = "bigHeal",	--Healing Wave rank 5
+			[11959] = "bigHeal",	--Healing Wave rank 6
+			[118005] = "bigHeal",	--Healing Wave rank 7
+			[1110395] = "bigHeal",	--Healing Wave rank 8
+			[1110396] = "bigHeal",	--Healing Wave rank 9
+			[1125357] = "bigHeal",	--Healing Wave rank 10
+			[1125391] = "bigHeal",	--Healing Wave rank 11
+			[1125396] = "bigHeal",	--Healing Wave rank 12
+			[1149272] = "bigHeal",	--Healing Wave rank 13
+			[1149273] = "bigHeal",	--Healing Wave rank 14
+			[115185] = "bigHeal",		--Healing Touch rank 1
+			[115186] = "bigHeal",		--Healing Touch rank 2
+			[115187] = "bigHeal",		--Healing Touch rank 3
+			[115188] = "bigHeal",		--Healing Touch rank 4
+			[115189] = "bigHeal",		--Healing Touch rank 5
+			[116778] = "bigHeal",		--Healing Touch rank 6
+			[118903] = "bigHeal",		--Healing Touch rank 7
+			[119758] = "bigHeal",		--Healing Touch rank 8
+			[119888] = "bigHeal",		--Healing Touch rank 9
+			[119889] = "bigHeal",		--Healing Touch rank 10
+			[1125297] = "bigHeal",		--Healing Touch rank 11
+			[1126978] = "bigHeal",		--Healing Touch rank 12
+			[1126979] = "bigHeal",		--Healing Touch rank 13
+			[1148377] = "bigHeal",		--Healing Touch rank 14
+			[1148378] = "bigHeal",		--Healing Touch rank 15
+			[112006] = "resurrection",	--Resurrection (priest) rank 1
+			[112010] = "resurrection",	--Resurrection (priest) rank 2
+			[1110880] = "resurrection",	--Resurrection (priest) rank 3
+			[1110881] = "resurrection",	--Resurrection (priest) rank 4
+			[1120770] = "resurrection",	--Resurrection (priest) rank 5
+			[1125435] = "resurrection",	--Resurrection (priest) rank 6
+			[1148171] = "resurrection",	--Resurrection (priest) rank 7
+			[117328] = "resurrection",	--Redemption rank 1
+			[1110322] = "resurrection",	--Redemption rank 2
+			[1110324] = "resurrection",	--Redemption rank 3
+			[1120772] = "resurrection",	--Redemption rank 4
+			[1120773] = "resurrection",	--Redemption rank 5
+			[1148949] = "resurrection",	--Redemption rank 6
+			[1148950] = "resurrection",	--Redemption rank 7
+			[112008] = "resurrection",	--Ancestral Spirit rank 1
+			[1120609] = "resurrection",	--Ancestral Spirit rank 2
+			[1150769] = "resurrection",	--Revive rank 1
+			[1150768] = "resurrection",	--Revive rank 2
+			[1150767] = "resurrection",	--Revive rank 3
+			[1150766] = "resurrection",	--Revive rank 4
+			[1150765] = "resurrection",	--Revive rank 5
+			[1150764] = "resurrection",	--Revive rank 6
+			[1150763] = "resurrection",	--Revive rank 7
+			--druid
+			[1118658] = "hibernate",
+			[112637] = "hibernate", 
+			[1133786] = "cyclone",  --works
+			[1148465] = "starfire", --rank 10
+			--paladin
+			[1110326] = "turnEvil", --unimplemented
+			--rogue
+			--warrior
+			--priest		
+			[118129] = "manaBurn", 
+			[119484] = "shackleUndead",
+			[1164843] = "divineHymn",
+			[11605] = "mindControl",
+			--shaman
+			[1151514] = "hex", --works
+			[1160043] = "lavaburst",
+			--mage
+			[11118] = "polymorph", --Can be poly:turtle, cat, sheep, etc
+			[1112826] = "polymorph",
+			[1128272] = "polymorph",
+			[1161305] = "polymorph",
+			[1161721] = "polymorph",
+			[1161025] = "polymorph",
+			[1161780] = "polymorph",
+			[1128271] = "polymorph", 
+			--Hunter
+			[11982] = "revivePet", 
+			[1114327] = "scareBeast",
+			--Warlock
+			[116215] = "fear", --works
+			[115484] = "fear2", -- Howl of Terror
+			[1117928] = "fear2", --Howl of Terror
+			[11710] = "banish",
+			[11688] = "summonpet", --works
+			[11691] = "summonpet", --works
+			[11712] =  "summonpet", --works
+			[11697] = "summonpet", --works
+			[1130146] = "summonpet", --felguard, works
+		},
+		castSuccess = { --Used for abilities that affect the player
+			--mage
+			[1112051] = "evocation",
+			[1111958] = "coldSnap",
+			[1144572] = "deepFreeze",
+			[1144445] = "hotStreak", --double check spell ID
+			[112139] = "counterspell",
+			[1166] = "invisibility",
+			--DK
+			[1147528] = "mindFreeze",
+			[1147476] = "strangulate",
+			[1147568] = "runeWeapon",
+			[1149206] = "gargoyle",
+			[1149203] = "hungeringCold",
+			[1161606] = "markofblood",
+			--hunter
+			[1123989] = "readiness", 
+			[1119386] = "wyvernSting", 
+			[1149010] = "wyvernSting", 
+			[1134490] = "silencingshot",
+			[1119434] = "aimedshot", --Aimed Shot rank 1
+			[1149050] = "aimedshot", --Aimed Shot rank 9
+			[1153271] = "masterscall",
+			[1160192] = "freezingtrap", --double check
+			[1114309] = "freezingtrap", --freezing trap effect
+			[1113810] = "frosttrap", --frost trap aura
+			[1113809] = "frosttrap", --frost trap aura
+			[1114311] = "freezingtrap",
+			[111499] = "frosttrap",
+			--warlock
+			[115138] = "DrainMana",
+			[1117928] = "fear2", --Howl of Terror
+			[1119647] = "spellLock",
+			[1148020] = "demonicCircleTeleport",
+			[116789] = "deathcoil",
+			[1147860] = "deathcoil",
+			[116358] = "Seduction",
+			--paladin
+			[1120066] = "repentance",
+			[1110308] = "hammerofjustice",
+			[1131884] = "avengingWrath",
+			--rogue
+			[1151722] = "disarm2", --dismantle
+			[1151724] = "sap",
+			[1111297] = "sap",
+			[116770] = "sap",
+			[112094] = "blind",
+			[111766] = "kick",
+			[1114185] = "preparation",
+			[1126889] = "vanish",
+			[1113877] = "bladeflurry",
+			[111784] = "stealth",
+			--shaman
+			[112825] = "bloodlust",
+			[1132182] = "heroism",
+			[118143] = "tremorTotem", --works
+			[1165992] = "tremorTotem", --dont know which one
+			[1116190] = "manaTide",
+			[112484] = "earthbind", --works
+			[118177] = "grounding", --works
+			--warrior
+			[112457] = "battlestance",
+			[1171] = "defensestance",
+			[112458] = "berserkerstance",
+			[11676] = "disarm", --works
+			[115246] = "fear3", --intimidating shout, works
+			[116552] = "pummel", --works
+			[1172] = "shieldBash", --works
+			--priest
+			[1110890] = "fear4", -- Psychic Scream
+			[1134433] = "shadowFiend", -- works
+			[1164044] = "disarm3", --psychic horror, works
+			[1148173] = "desperatePrayer", --works
+		},
+		enemyDebuffs = {
+			[112094] = "Enemyblinded", --works
+			[1151724] = "Enemysapped", --works
+			[1112826] = "EnemyPollied",
+			[11118] = "EnemyPollied",
+			[1133786] = "EnemyCycloned",--menu
+			[1151514] = "EnemyHexxed",
+		},
+		enemyDebuffdown = {
+			[112094] = "blinddown", --works
+			[1151724] = "sapdown", --works
+			[11118] = "polydown",
+			[1112826] = "polydown",
+			[1133786] = "cyclonedown", --menu
+			[1151514] = "hexdown",
+		},
+		interruptFriend = {
+			[112139] = "friendcountered",
+			[1150613] = "friendcountered",
+			[111766] = "friendcountered",
+			[1157994] = "friendcountered",
+			[1172] = "friendcountered",
+			[1147528] = "friendcountered",
+		},
+		friendCCs = {
+			[1133786] = "cyclonefriend",
+			[1151514] = "hexfriend",
+			[1112826] = "polyfriend",
+			[11118] = "polyfriend",
+			[1128272] = "polyfriend",
+			[1161305] = "polyfriend",
+			[1161721] = "polyfriend",
+			[1161025] = "polyfriend",
+			[1161780] = "polyfriend",
+			[1128271] = "polyfriend",
+			[116215] = "fearfriend",
+		},
+		friendCCSuccess = {
+			[1114309] = "friendfrozen",
+			[112094] = "blindfriend",
+			[115246] = "friendfeared", --intimidating shout
+			[1151724] = "friendsapped",
+			[1133786] = "friendcycloned",
+			[1110308] = "friendstunned",
+			[112139] = "friendcountered",
+			[1151514] = "friendhexxed",
+			[11118] = "friendpoly",
+			[1112826] = "friendpoly",
+			[116215] = "friendfeared",
+			[1110890] = "friendfeared",
+			[1117928] = "friendfeared",
+		},
+		friendCCenemy = {
+			[112094] = "enemyblinded",
+			[1151724] = "enemysapped",
+			[1151514] = "enemyhexxed",
+			[1112826] = "enemypollied",
+			[11118] = "enemypollied",
+			[1133786] = "enemycycloned",
+		},
+		enemyDebuffdownAP = {
+			[112094] = "Blinddown",
+			[1151724] = "Sapdown",
+			[1151514] = "Hexdown",
+			[1112826] = "Polydown",
+			[11118] = "Polydown",
+			[1133786] = "CycloneDown",
+		},
+		selfDebuff = {
+			[1133786] = "Cyclone",
+			[1151514] = "Hex",
+			[1112826] = "Polymorph",
+			[11118] = "Polymorph",
+			[1128272] = "Polymorph",
+			[1161305] = "Polymorph",
+			[1161721] = "Polymorph",
+			[1161025] = "Polymorph",
+			[1161780] = "Polymorph",
+			[1128271] = "Polymorph",
+			[116215] = "Fear",
+			[1160192] = "Freezingtrap", --double check
+			[1114309] = "Freezingtrap", --freezing trap effect
+			[1113810] = "Frosttrap", --frost trap aura
+			[1113809] = "Frosttrap", --frost trap aura
+			[1114311] = "Freezingtrap",
+			[111499] = "Frosttrap",
+			[115246] = "Fear3", --intimidating shout
+			[1117928] = "Fear2", --Howl of Terror
+			[112094] = "Blind",
+			[1151724] = "Sap",
+			[1111297] = "Sap",
+			[116770] = "Sap",
+			[1110308] = "Hammerofjustice",
+			[1110890] = "Fear4", -- Psychic Scream
+			[1147860] = "Deathcoil",
+			[115138] = "drainMana",
+			[1144572] = "DeepFreeze",
+			[1120066] = "Repentance",
+			[1134490] = "Silencingshot",
+			[1119434] = "Aimedshot", --Aimed Shot rank 1
+			[1149050] = "Aimedshot", --Aimed Shot rank 9
+			[1147476] = "Strangulate",
+			[1151722] = "Disarm2", --dismantle
+			[1161606] = "Markofblood",
+			[1119386] = "wyvernSting", 
+			[1149010] = "wyvernSting", 
+			[116358] = "seduction",
+		},
+	}
+end
+
+function SoundAlerter:OnInitialize()
+	if not self.spellList then
+		self.spellList = self:GetSpellList()
+	end
+	for _,v in pairs(self.spellList) do
+		for _,spell in pairs(v) do
+			if dbDefaults.profile[spell] == nil then dbDefaults.profile[spell] = true end
+		end
+	end
+	self.db1 = LibStub("AceDB-3.0"):New("SoundAlerterDB",dbDefaults, "Default");
+	DEFAULT_CHAT_FRAME:AddMessage("|cffFF7D0ASoundAlerter|r by |cff0070DETrolollolol|r - Ragnaros - Molten-WoW.com  - /SOUNDALERTER ");
+	self.db1.RegisterCallback(self, "OnProfileChanged", "ChangeProfile")
+	self.db1.RegisterCallback(self, "OnProfileCopied", "ChangeProfile")
+	self.db1.RegisterCallback(self, "OnProfileReset", "ChangeProfile")
+	self:RegisterChatCommand("SoundAlerter", "ShowConfig")
+	self:RegisterChatCommand("SALERTER", "ShowConfig")
+	self:RegisterChatCommand("sa", "ShowConfig")
+	sadb = self.db1.profile
+	SoundAlerter.options = {
+		name = "SoundAlerter",
+		desc = "Voice prompts from enemy used spells",
+		type = 'group',
+		icon = [[Interface\Icons\Spell_Nature_ForceOfNature]],
+		args = {},
+	}
+	local bliz_options = CopyTable(SoundAlerter.options)
+	bliz_options.args.load = {
+		name = "Load configuration",
+		desc = "Load configuration options",
+		type = 'execute',
+		func = "ShowConfig",
+		handler = SoundAlerter,
+	}
+
+	LibStub("AceConfig-3.0"):RegisterOptionsTable("SoundAlerter_bliz", bliz_options)
+	AceConfigDialog:AddToBlizOptions("SoundAlerter_bliz", "SoundAlerter")
+end
+
+function SoundAlerter:OnEnable()
+	SoundAlerter:RegisterEvent("PLAYER_ENTERING_WORLD")
+	SoundAlerter:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	SoundAlerter:RegisterEvent("UNIT_AURA")
+	if not SA_LANGUAGE[sadb.path] then sadb.path = SA_LOCALEPATH[GetLocale()] end
+	self.throttled = {}
+	self.smarter = 0
+end
+	GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
+        local name, server = tip:GetUnit()
+		local Realm = GetRealmName()
+        if (SA_sponsors[name] ) then if ( SA_sponsors[name]["Realm"] == Realm ) then
+		tip:AddLine(SA_sponsors[SA_sponsors[name].Type], 1, 0, 0 ) end; end
+    end)
+	
+function SoundAlerter:PlayTrinket()
+	PlaySoundFile(sadb.sapath.."Trinket.mp3");
+end
+
+function SoundAlerter:Interrupted()
+	PlaySoundFile(sadb.sapath.."Interrupted.mp3");
+end
+
+function SoundAlerter:spellOptions(order, spellID, ...)
+	local spellname,_,icon = GetSpellInfo(spellID)
+	
+	if spellname ~= nil then
+		return {
+			type = 'toggle',
+			name = "\124T"..icon..":24\124t"..spellname,							
+			desc = function () 
+				GameTooltip:SetHyperlink(GetSpellLink(spellID));
+			end,
+			descStyle = "custom",
+			order = order,
+		}
+	else
+		-- FIX: If GetSpellInfo fails, return a safe table instead of nil to prevent AceConfig from crashing.
+		self:Print("<SA>: Error loading spell ID " ..spellID .. " as it seems to not exist (anymore). Option disabled.")
+		
+		-- Use L for localization if available, otherwise just use plain text.
+		local unknown_name = (L and L["Unknown Spell ID"] or "Unknown Spell ID") .. " (" .. spellID .. ")"
+		local unknown_desc = L and L["This spell ID could not be found by your WoW client. It has been disabled."] or "This spell ID could not be found by your WoW client. It has been disabled."
+		
+		return {
+			type = 'description',
+			name = unknown_name,
+			desc = unknown_desc,
+			order = order,
+			disabled = true, 
+		}
+	end
+end
+
+function SoundAlerter:ArenaClass(id)
+	for i = 1 , 5 do
+		if id == UnitGUID("arena"..i) then
+			return select(2, UnitClass ("arena"..i))
+		end
+	end
+end
+
+function SoundAlerter:PLAYER_ENTERING_WORLD()
+	CombatLogClearEntries()
+end
+
+function SoundAlerter:PlaySpell(list, spellID, ...)
+	if list[spellID] then
+		if not sadb[list[spellID]] then return end
+		if sadb.debugmode then print("<SA> DEBUG: Playing sound file: "..list[spellID]..".mp3"); end
+		PlaySoundFile(sadb.sapath..list[spellID]..".mp3");
+	end
+end
+
+function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
+--todo: divine shield+trinket chat alerts
+	local _,currentZoneType = IsInInstance()
+	local pvpType, isFFA, faction = GetZonePVPInfo();
+	if (not ((pvpType == "contested" and sadb.field) or (pvpType == "hostile" and sadb.field) or (pvpType == "friendly" and sadb.field) or (currentZoneType == "pvp" and sadb.battleground) or (((currentZoneType == "arena") or (pvpType == "arena")) and sadb.arena) or sadb.all)) then
+		return
+	end
+	local timestamp,event,sourceGUID,sourceName,sourceFlags,destGUID,destName,destFlags,spellID,spellName= select ( 1 , ... );
+	local toSelf,toEnemy,fromEnemy,toTarget,fromFocus = false, false, false, false, false
+	local focusTarget = UnitName("focustarget")
+	local enemyTarget2 = UnitName("targettarget")
+	local myTarget = UnitName("target")
+	local myFocus = UnitName("focus")
+	if (destFlags) then
+		for k in pairs(SA_TYPE) do
+			desttype[k] = CombatLog_Object_IsA(destFlags,k)
+		end
+	else
+		for k in pairs(SA_TYPE) do
+			desttype[k] = nil
+		end
+	end
+	if (destGUID) then
+		for k in pairs(SA_UNIT) do
+			if k == "party" then
+				if UnitName("party1") ~= nil then --because UnitInParty always returns true?
+					for i = 1, MAX_PARTY_MEMBERS do
+						if destGUID == UnitGUID(k..i) then
+						destuid[k] = (UnitGUID(k..i) == destGUID)
+						break
+						end
+					end
+				end
+			elseif k == "arena" then
+				if currentZoneType == "arena" then
+					for i = 1 , 5 do
+						if destGUID == UnitGUID(k..i) then
+						destuid[k] = (UnitGUID(k..i) == destGUID)
+						break
+						end
+					end
+				end
+			else
+			destuid[k] = (UnitGUID(k) == destGUID)
+			end
+			--	log("destuid:"..k.."="..(destuid[k] and "true" or "false"))
+		end
+	else
+		for k in pairs(SA_UNIT) do
+			destuid[k] = nil
+			--	log("destuid:"..k.."="..(destuid[k] and "true" or "false"))
+		end
+	end
+	destuid.any = true
+	if (sourceFlags) then
+		for k in pairs(SA_TYPE) do
+			sourcetype[k] = CombatLog_Object_IsA(sourceFlags,k)
+			--log("sourcetype:"..k.."="..(sourcetype[k] or "nil"))
+		end
+	else
+		for k in pairs(SA_TYPE) do
+			sourcetype[k] = nil
+			--log("sourcetype:"..k.."="..(sourcetype[k] or "nil"))
+		end
+	end
+	if (sourceGUID) then
+		for k in pairs(SA_UNIT) do
+			if k == "party" then
+				if UnitName("party1") ~= nil then
+					for i = 1, MAX_PARTY_MEMBERS do
+						if sourceGUID == UnitGUID(k..i) then
+						sourceuid[k] = (UnitGUID(k..i) == sourceGUID)
+						break
+						end
+					end
+				end
+			elseif k == "arena" then
+				if currentZoneType == "arena" then
+					for i = 1 , 5 do
+						if sourceGUID == UnitGUID(k..i) then
+							sourceuid[k] = (UnitGUID(k..i) == sourceGUID)
+							break
+						end
+					end
+				end
+			else
+				sourceuid[k] = (UnitGUID(k) == sourceGUID)
+			end
+			--log("sourceuid:"..k.."="..(sourceuid[k] and "true" or "false"))
+		end
+	else
+		for k in pairs(SA_UNIT) do
+			sourceuid[k] = nil
+			--log("sourceuid:"..k.."="..(sourceuid[k] and "true" or "false"))
+		end
+	end
+	sourceuid.any = true
+	
+	if sadb.debugmode and sadb.spelldebug then
+		print(spellName,spellID,event,sourceName,destName)
+	end
+	if sadb.debugmode and spellName == sadb.csname and spellName then
+		print("Custom spell name: "..spellName,spellID,event,sourceName,destName)
+	end
+		--Special conditions (freezing trap)
+		if desttype[COMBATLOG_FILTER_HOSTILE_PLAYERS] and event == "SPELL_CREATE" and (spellID == 13809 or spellID == 13810 or spellID == 1499) and ((sadb.myself and (destuid.target or destuid.focus)) or sadb.enemyinrange) then
+			self:PlaySpell (self.spellList.castSuccess,spellID)
+		end
+		if (event == "SPELL_AURA_APPLIED") then
+			if desttype[COMBATLOG_FILTER_HOSTILE_PLAYERS] then
+				if sourcetype[COMBATLOG_FILTER_ME] then --my spells against enemy
+					if not sadb.enemydebuff then
+					self:PlaySpell(self.spellList.enemyDebuffs,spellID)
+					end
+						if not sadb.chatalerts then
+							if (((spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapenemy) or (spellID == 2094 and sadb.blindenemy) or (spellID == 33786 and sadb.cycloneenemy) or (spellID == 51514 and sadb.hexenemy) or (spellID == 5782 and sadb.fearenemy)) then
+								local ccenemychat = gsub(sadb.enemychat, "(#spell#)", GetSpellLink(spellID))
+								SendChatMessage(gsub(ccenemychat, "(#enemy#)", destName), sadb.chatgroup, nil, nil)
+							end
+						end
+				elseif (sourcetype[COMBATLOG_FILTER_FRIENDLY_UNITS] and (destuid.target or destuid.focus) and not sadb.dArenaPartner) then
+					self:PlaySpell(self.spellList.friendCCenemy,spellID)
+				elseif ((sadb.myself and (destuid.target or destuid.focus)) or sadb.enemyinrange) and not sadb.castSuccess then
+					self:PlaySpell(self.spellList.auraApplied,spellID)	--check hand of freedom 
+				end
+			elseif desttype[COMBATLOG_FILTER_ME] then --spells applied to myself
+						if not sadb.chatalerts then --todo: get localized table of spell names to compare instead/css custom chat alerts
+							if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] or ((spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend) then
+								if ((spellID == 51514 and sadb.hexselffriend) or 
+									(spellID == 33786 and sadb.cycloneselffriend) or 
+									((spellID == 6215 or spellID == 17928 or spellID == 5484) and sadb.fearselffriend) or
+									((spellID == 12826 or spellID == 118 or spellID == 28271 or spellID == 28272) and sadb.polyenemy) or
+									(spellID == 2094 and sadb.blindselffriend)) then
+										local form1 = gsub(sadb.selfchat, "(#spell#)", GetSpellLink(spellID))
+										local form2 = gsub(form1, "(#target#)", "me")
+										SendChatMessage(gsub(form2, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+								elseif (spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend then
+										SendChatMessage(gsub(sadb.sapselftext, "(#spell#)", GetSpellLink(spellID)), sadb.chatgroup, nil, nil)
+								end
+							end
+						end
+						if not sourceuid.target and not sourceuid.focus and not sadb.dselfDebuff then
+							self:PlaySpell(self.spellList.selfDebuff,spellID) --debuffs on self, if source is enemy or spell is sap?
+						end
+			elseif desttype[COMBATLOG_FILTER_FRIENDLY_UNITS] then 
+					--chat alerts, enemy casted a spell on friend
+					if (not sadb.chatalerts and not desttype[COMBATLOG_FILTER_ME] and (destuid.target or destuid.focus or (currentZoneType == "arena" or pvpType == "arena"))) then
+						if (spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend then --this worked by default, everything below didn't / replacing "(#friend#)" with destName did nothing either
+							local sapfriendtext = gsub(sadb.sapfriendtext, "(#spell#)", GetSpellLink(spellID))
+							SendChatMessage(gsub(sapfriendtext, "(#friend#)", destName), sadb.chatgroup, nil, nil)
+						elseif ((spellID == 51514 and sadb.hexselffriend) or 
+							(spellID == 642 and sadb.bubbleselffriend) or 
+							(spellID == 33786 and sadb.cycloneselffriend) or 
+							((spellID == 6215 or spellID == 17928 or spellID == 5484) and sadb.fearselffriend) or
+							((spellID == 12826 or spellID == 118 or spellID == 28271 or spellID == 28272) and sadb.polyenemy) or
+							(spellID == 2094 and sadb.blindselffriend)) then
+								local form1 = gsub(sadb.friendchat, "(#spell#)", GetSpellLink(spellID))
+								local form2 = gsub(form1, "(#friend#)", destName)
+								SendChatMessage(gsub(form2, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+						end
+					end
+			end
+		elseif (event == "SPELL_AURA_REMOVED" and desttype[COMBATLOG_FILTER_HOSTILE_PLAYERS] and ((sourcetype[COMBATLOG_FILTER_ME] or (destuid.target or destuid.focus)))) then
+			if sourcetype[COMBATLOG_FILTER_FRIENDLY_UNITS] and ((destuid.target or (currentZoneType == "arena" or pvpType == "arena")) and not sadb.dArenaPartner) then
+				self:PlaySpell (self.spellList.enemyDebuffdownAP,spellID)
+			elseif sourcetype[COMBATLOG_FILTER_ME] and not sadb.dEnemyDebuffDown then
+				self:PlaySpell (self.spellList.enemyDebuffdown,spellID)
+			elseif sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] and not sadb.aruaRemoved then
+				self:PlaySpell (self.spellList.auraRemoved,spellID)
+			end
+				if (not sadb.chatalerts and ((sourcetype[COMBATLOG_FILTER_ME] and sadb.chatdownself) or ((not sadb.caonlyTF or destuid.target or destuid.focus) and sadb.chatdownfriend))) then
+						if ((spellID == 33786 and sadb.cycloneenemy) or 
+							(spellID == 51514 and sadb.hexenemy) or
+							(spellID == 2094 and sadb.blindenemy) or
+							((spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapenemy) or 
+							((spellID == 12826 or spellID == 118 or spellID == 28271 or spellID == 28272) and sadb.polyenemy) or 
+							((spellID == 6215 or spellID == 5484 or spellID == 17928) and sadb.fearenemy)) then
+								SendChatMessage(GetSpellLink(spellID).." down on "..destName)
+						end
+				end
+		elseif (event == "SPELL_CAST_SUCCESS") then
+			if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] then
+				if (not sadb.chatalerts) then
+						if ((sadb.vanishenemy and spellID == 26889) or (sadb.stealthenemy and spellID == 1784)) and ((sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and spellID == 26889) or (sadb.stealthTF and spellID == 1784))) then
+							SendChatMessage(gsub(gsub(sadb.enemychat,"(#spell#)", GetSpellLink(spellID)),"(#enemy#)", sourceName),sadb.chatgroup,nil,nil)
+						end
+				end
+				if ((spellID == 42292 or spellID == 59752) and sadb.trinket) then
+					if ((currentZoneType == "arena" or pvpType == "arena") or (sourceuid.target or sourceuid.focus)) then
+						if (self:ArenaClass(sourceGUID) and sadb.class) then
+							PlaySoundFile(sadb.sapath..c..".mp3"); --todo: convert ogg class to mp3
+							self:ScheduleTimer("PlayTrinket", 0.4);
+						else
+							self:PlayTrinket()
+						end
+					end
+				elseif ((sadb.myself and (sourceuid.target or sourceuid.focus)) or sadb.enemyinrange) and not sadb.castSuccess then	
+					if not (sadb.enemyinrange and (spellID == 2825 or spellID == 32182)) then --make sure not bloodlust/hero
+						self:PlaySpell (self.spellList.castSuccess,spellID)
+					elseif (sourceuid.target or sourceuid.focus) then
+						self:PlaySpell(self.spellList.castSuccess,spellID)	--bloodlust/heroism must be on target/focus in order to not spam
+					end
+				end					
+			elseif (desttype[COMBATLOG_FILTER_FRIENDLY_UNITS] and not desttype[COMBATLOG_FILTER_ME] and ((destuid.target or destuid.focus) or (currentZoneType == "arena" or pvpType == "arena")) and not sadb.dArenaPartner) then
+					self:PlaySpell (self.spellList.friendCCSuccess,spellID) --friend gets cc'd in arena or if target/focus
+			end
+		elseif (event == "SPELL_INTERRUPT") then
+			if (desttype[COMBATLOG_FILTER_ME] or sourcetype[COMBATLOG_FILTER_ME] and not sadb.interrupt) then
+				PlaySoundFile(sadb.sapath.."lockout.mp3");
+				if (not sadb.chatalerts) then
+					if (sadb.interruptenemy and sourcetype[COMBATLOG_FILTER_ME]) then
+						local it = gsub(sadb.InterruptEnemyText, "(#spell#)", GetSpellLink(spellID))
+						SendChatMessage(gsub(it, "(#enemy#)", destName), sadb.chatgroup, nil, nil)
+					elseif (sadb.interruptself and desttype[COMBATLOG_FILTER_ME]) then
+						local it = gsub(sadb.InterruptSelfText, "(#spell#)", GetSpellLink(spellID))
+						SendChatMessage(gsub(it, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+					end
+				end
+			end
+		elseif (event == "SPELL_CAST_START") then
+			if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] then
+				if not sadb.castStart and (sadb.myself and (sourceuid.target or sourceuid.focus) or sadb.enemyinrange) then
+					self:PlaySpell (self.spellList.castStart,spellID)
+				elseif ((currentZoneType == "arena") or (pvpType == "arena")) and not sadb.dArenaPartner then
+					for i = 1, 6 do 
+						if i == 6 then 
+							self:PlaySpell(self.spellList.friendCCs,spellID)
+							break 
+						elseif playerName == UnitName("arena"..i.."target") then
+							self:PlaySpell(self.spellList.castStart,spellID)
+							break
+						end
+					end
+				end
+			end
+		end
+		for k,css in pairs (sadb.custom) do
+			if css.destuidfilter == "custom" and destName == css.destcustomname then 
+				destuid.custom = true  
+			else 
+				destuid.custom = false 
+			end
+			if css.sourceuidfilter == "custom" and sourceName == css.sourcecustomname then
+				sourceuid.custom = true
+			else
+				sourceuid.custom = false 
+			end--custom sound alert
+			if sadb.debugmode and css.name == sadb.cspell and (spellID == tonumber(css.spellid) or (css.acceptSpellName and (css.spellname == spellName))) then
+				log(css.name..": event: "..(css.eventtype[event] and "true" or "false")..", actual event: "..event..", dest spell: "..(destuid[css.destuidfilter] and "true" or "false")..", dest type: "..(desttype[css.desttypefilter] and "true" or "false")..", sourceunit: "..(sourceuid[css.sourceuidfilter] and "true" or "false")..", source type: "..(sourcetype[css.sourcetypefilter] and "true" or "false"))
+			end
+			if css.eventtype[event] and destuid[css.destuidfilter] and desttype[css.desttypefilter] and sourceuid[css.sourceuidfilter] and sourcetype[css.sourcetypefilter] and (spellID == tonumber(css.spellid) or (css.acceptSpellName and (css.spellname == spellName))) then
+					if sadb.debugmode then
+					self:Print("playing css "..css.name)
+					end
+				if not css.chatAlert then
+					PlaySoundFile("Interface\\Addons\\SoundAlerter\\CustomSounds\\"..css.soundfilepath,"Master")
+				else
+					local spell = gsub(css.chatalerttext, "(#spell#)", GetSpellLink(spellID))
+					if destuid[css.destuidfilter] or desttype[css.desttypefilter] then
+						if event == "SPELL_CAST_START" then
+							SendChatMessage(gsub(spell, "(#enemy#)", ""), sadb.chatgroup, nil, nil)
+						else
+							SendChatMessage(gsub(spell, "(#enemy#)", destName), sadb.chatgroup, nil, nil)
+						end
+					elseif sourceuid[css.sourceuidfilter] or sourcetype[css.sourceuidfilter] then
+						if event == "SPELL_CAST_START" then
+							SendChatMessage(gsub(spell, "(#enemy#)", ""), sadb.chatgroup, nil, nil)
+						else
+							SendChatMessage(gsub(spell, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+						end
+					end
+				end
+			end
+		end
+end
+--Drink Spell in Arenas
+local DRINK_SPELL = GetSpellInfo(57073)
+function SoundAlerter:UNIT_AURA(event,uid)
+	if ((currentZoneType == "arena") or (pvpType == "arena")) and sadb.drinking then
+		if UnitAura(uid,DRINK_SPELL) then
+			PlaySoundFile(sadb.sapath.."drinking.mp3");
+		end
+	end
+end
