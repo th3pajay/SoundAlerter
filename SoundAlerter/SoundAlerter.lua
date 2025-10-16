@@ -153,7 +153,10 @@ function SoundAlerter:spellOptions(order, spellID, ...)
             type = 'toggle',
             name = "\124T"..icon..":24\124t"..spellname,
             desc = function ()
-                GameTooltip:SetHyperlink(GetSpellLink(spellID));
+                local spellLink = GetSpellLink(spellID)
+                if spellLink then
+                    GameTooltip:SetHyperlink(spellLink);
+                end
             end,
             descStyle = "custom",
             order = order,

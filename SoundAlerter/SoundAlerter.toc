@@ -1,7 +1,7 @@
 ﻿## Interface: 30300
 ## Title: SoundAlerter
-## Notes: Sound Alerter for player used spells
-## Author: Trolololol, Abatorlos of Spinebreaker, Duskashes, Superk
+## Notes: Voice alerts and chat announcements for critical PvP spells (CC, interrupts, cooldowns).
+## Author: Trolololol, Abatorlos of Spinebreaker, Duskashes, Superk, th3pajay
 ## SavedVariables: SoundAlerterDB
 ## Version: 1.0
 

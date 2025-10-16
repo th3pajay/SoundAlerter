@@ -34,22 +34,34 @@ function SoundAlerter:AddOption(key, table)
 end
 
 local function setOption(info, value)
-	local name = info[#info]
-	sadb[name] = value
-	PlaySoundFile(sadb.sapath..name..".mp3");
+    local name = info[#info]
+    sadb[name] = value
+    if value then
+        PlaySoundFile(sadb.sapath .. name .. ".mp3");
+    end
 end
+
 local function getOption(info)
 	local name = info[#info]
 	return sadb[name]
 end
 
- function listOption(spellList, listType, ...)
+function listOption(spellList, listType, ...)
 	local args = {}
 	for k,v in pairs(spellList) do
 		local key = SoundAlerter.spellList[listType] and SoundAlerter.spellList[listType][v]
-		
+
 		if key then
-			rawset(args, key, self:spellOptions(k, v))
+			local option = self:spellOptions(k, v)
+			if option.type == 'toggle' and not option.desc then
+				option.desc = function()
+					if GetSpellLink(v) then
+						GameTooltip:SetHyperlink(GetSpellLink(v));
+					end
+				end
+				option.descStyle = "custom"
+			end
+			rawset(args, key, option)
 		else
 			print("|cffFF7D0ASoundAlerter|r: Missing spell definition for ID:", v, "in list type:", listType)
 		end
@@ -785,14 +797,14 @@ function SoundAlerter:OnOptionsCreate()
 								end,
 								order = 1,
 							},
-							stealthenemy = {
-								type = 'toggle',
-								name = SpellTextureName(1105215),
-								desc = function ()
-									GameTooltip:SetHyperlink(GetSpellLink(1105215));
-								end,
-								order = 2,
-							},
+							prowlenemy = {
+                                type = 'toggle',
+                                name = SpellTextureName(1105215),
+                                desc = function ()
+                                    GameTooltip:SetHyperlink(GetSpellLink(1105215));
+                                end,
+                                order = 2,
+                            },
 							blindenemy = {
 								type = 'toggle',
 								name = SpellTexture(2094).."Blind on Enemy",
@@ -987,7 +999,7 @@ function SoundAlerter:OnOptionsCreate()
 				prowlalerttextg = {
 						type = "group",
 						inline = true,
-						hidden = function() if sadb.stealthenemy then return false else return true end end,
+						hidden = function() if sadb.prowlenemy then return false else return true end end,
 						name = SpellTextureName(1105215),
 						order = 16,
 						args = {
