@@ -1,4 +1,4 @@
-SoundAlerter: Enhanced for WoW Ascension: Bronzebeard (20251014)
+SoundAlerter: Enhanced for WoW Ascension: Classic+ (20251014)
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>

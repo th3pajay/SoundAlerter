@@ -242,7 +242,8 @@ SoundAlerterSpells = {
         [1161721] = "polymorph",
         [1161025] = "polymorph",
         [1161780] = "polymorph",
-        [1128271] = "polymorph", 
+        [1128271] = "polymorph",
+		[1398221] = "ringoffrost", 
         --Hunter
         [982] = "revivePet", 
         [1114327] = "scareBeast",
@@ -256,6 +257,7 @@ SoundAlerterSpells = {
         [11712] =  "summonpet",
         [11697] = "summonpet",
         [1130146] = "summonpet", --felguard, works
+		[1398206] = "handofguldan",
     },
     castSuccess = { -- SPELL_CAST_SUCCESS: Instant spells or spells completing a cast that are important
         --mage
@@ -265,6 +267,8 @@ SoundAlerterSpells = {
         [1144445] = "hotStreak", --double check spell ID
         [1102139] = "counterspell",
         [1100066] = "invisibility",
+		[1398172] = "meteor",
+		[1398160] = "altertime",
         --DK
         [1147528] = "mindFreeze",
         [1147476] = "strangulate",
@@ -325,6 +329,7 @@ SoundAlerterSpells = {
         [1116190] = "manaTide",
         [1102484] = "earthbind",
         [1108177] = "grounding",
+		[1398198] = "capacitortotem",
         --warrior
         [1102457] = "battlestance",
         [1100071] = "defensestance",
