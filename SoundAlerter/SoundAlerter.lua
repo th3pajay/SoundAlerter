@@ -106,7 +106,7 @@ function SoundAlerter:OnInitialize()
     AceConfig:RegisterOptionsTable("SoundAlerter_bliz", bliz_options)
     AceConfigDialog:AddToBlizOptions("SoundAlerter_bliz", "SoundAlerter")
     
-    self:Print("|cffFF7D0ASoundAlerter|r by |cff0070DETrolollolol|r (Updated by th3pajay) - /SOUNDALERTER ")
+    self:Print("|cffFF7D0ASoundAlerter|r by |cff0070DEth3pajay|r - /SA ")
 end
 
 function SoundAlerter:OnEnable()

@@ -640,7 +640,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffFF7D0ADruid|r",
 						order = 1,
-						args = listOption({1133831,1398193,1398192,1398202,1105215},"castSuccess"),
+						args = listOption({1133831,1398193,1398192,2304523,1105215},"castSuccess"),
 					},
 					dk	= {
 						type = 'group',
@@ -682,7 +682,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffFFF569Rogue|r",
 						order = 7,
-						args = listOption({1151722,1151724,2094,1766,1114185,1126889,1113877,1784},"castSuccess"),
+						args = listOption({1151722,1151724,2094,1766,1114185,1126889,1113877,1784,1398189},"castSuccess"),
 					},
 					shaman	= {
 						type = 'group',

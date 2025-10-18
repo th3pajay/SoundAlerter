@@ -304,7 +304,7 @@ SoundAlerterSpells = {
         [1133831] = "forceofnature",
 		[1398193] = "stampendingroar",
 		[1398192] = "massentanglement",
-		[1398202] = "solarbeam",
+		[2304523] = "solarbeam",
 		[1105215] = "prowl",
         --paladin
         [1120066] = "repentance",
@@ -321,6 +321,7 @@ SoundAlerterSpells = {
         [1126889] = "vanish",
         [1113877] = "bladeflurry",
         [1784] = "stealth",
+		[1398189] = "smokebomb",
         --shaman
         [1102825] = "bloodlust",
         [1132182] = "heroism",
