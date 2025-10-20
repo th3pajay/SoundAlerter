@@ -63,7 +63,9 @@ function listOption(spellList, listType, ...)
 			end
 			rawset(args, key, option)
 		else
-			print("|cffFF7D0ASoundAlerter|r: Missing spell definition for ID:", v, "in list type:", listType)
+			if sadb.debugmode then
+				print("|cffFF7D0ASoundAlerter|r: Missing spell definition for ID:", v, "in list type:", listType)
+			end
 		end
 	end
 	return args
@@ -401,7 +403,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffFF7D0ADruid|r",
 						order = 5,
-						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1116974,1398191},"auraApplied"),	
+						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1116974,1398191,1169369},"auraApplied"),	
 					},
 					dk	= {
 						type = 'group',
@@ -981,7 +983,7 @@ function SoundAlerter:OnOptionsCreate()
 							},
 						},
 					},
-					stealthalerttextg = {
+				stealthalerttextg = {
 						type = "group",
 						inline = true,
 						hidden = function() if sadb.stealthenemy then return false else return true end end,
@@ -1002,7 +1004,7 @@ function SoundAlerter:OnOptionsCreate()
 						name = SpellTextureName(1105215),
 						order = 16,
 						args = {
-							stealthTF = {
+							prowlTF = {
 							type = 'toggle',
 							name = "Ignore target/focus",
 							order = 3,
@@ -1019,7 +1021,7 @@ function SoundAlerter:OnOptionsCreate()
 							vanishTF = {
 							type = 'toggle',
 							name = "Ignore target/focus",
-							order = 2,
+							order = 4,
 							},
 						},
 					},
@@ -1030,14 +1032,14 @@ function SoundAlerter:OnOptionsCreate()
 						order = 18,
 						args = {
 							InterruptEnemyText = {
-							name = "Interrupt on Enemy (eg. 'Interrupted #enemy# with #spell#')",
+							name = "Interrupt on Enemy (eg. 'Interrupted #enemy#'s #interruptedspellname# with #spell#.')",
 							hidden = function() if sadb.interruptenemy then return false else return true end end,
 							type = "input",
 							order = 1,
 							width = "full",
 							},
 							InterruptSelfText = {
-							name = "Interrupts from Enemy (eg. '#enemy# interrupted me with #spell#')",
+							name = "Interrupts from Enemy (eg. '#enemy# interrupted my #interruptedspellname# with #spell#.')",
 							hidden = function() if sadb.interruptself then return false else return true end end,
 							type = "input",
 							order = 1,

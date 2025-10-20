@@ -271,7 +271,11 @@ function SoundAlerter:HandleCastSuccess(sourceGUID, sourceName, destName, spellI
     
     if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] then
         if (not sadb.chatalerts) then
-            if ((sadb.vanishenemy and spellID == 26889) or (sadb.stealthenemy and spellID == 1784)) and ((sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and spellID == 26889) or (sadb.stealthTF and spellID == 1784))) then
+            if (
+                ((sadb.vanishenemy and spellID == 26889) or (sadb.stealthenemy and spellID == 1784) or (sadb.prowlenemy and spellID == 1105215)) 
+                and 
+                ( (sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and spellID == 26889) or (sadb.stealthTF and spellID == 1784) or (sadb.prowlTF and spellID == 1105215)) ) 
+            ) then
                 SendChatMessage(gsub(gsub(sadb.enemychat,"(#spell#)", GetSpellLink(spellID)),"(#enemy#)", sourceName),sadb.chatgroup,nil,nil)
             end
         end
@@ -292,22 +296,47 @@ function SoundAlerter:HandleCastSuccess(sourceGUID, sourceName, destName, spellI
             elseif (sourceuid.target or sourceuid.focus) then
                 self:PlaySpell(self.spellList.castSuccess, spellID)
             end
-        end                    
+        end                       
     elseif (desttype[COMBATLOG_FILTER_FRIENDLY_UNITS] and not desttype[COMBATLOG_FILTER_ME] and ((destuid.target or destuid.focus) or (currentZoneType == "arena" or pvpType == "arena")) and not sadb.dArenaPartner) then
         self:PlaySpell(self.spellList.friendCCSuccess, spellID)
     end
 end
 
-function SoundAlerter:HandleInterrupt(sourceName, destName, spellID)
-    if (desttype[COMBATLOG_FILTER_ME] or sourcetype[COMBATLOG_FILTER_ME] and not sadb.interrupt) then
+function SoundAlerter:HandleInterrupt(sourceName, destName, spellID, extraSpellID)
+    local interruptedSpellLink = GetSpellLink(extraSpellID)
+    local interruptedSpellName = GetSpellInfo(extraSpellID)
+    local replacementText = interruptedSpellLink or interruptedSpellName or ""
+    
+    if (desttype[COMBATLOG_FILTER_ME] and not sadb.interrupt) then
         PlaySoundFile(sadb.sapath.."lockout.mp3");
         if (not sadb.chatalerts) then
-            if (sadb.interruptenemy and sourcetype[COMBATLOG_FILTER_ME]) then
-                local it = gsub(sadb.InterruptEnemyText, "(#spell#)", GetSpellLink(spellID))
-                SendChatMessage(gsub(it, "(#enemy#)", destName), sadb.chatgroup, nil, nil)
-            elseif (sadb.interruptself and desttype[COMBATLOG_FILTER_ME]) then
-                local it = gsub(sadb.InterruptSelfText, "(#spell#)", GetSpellLink(spellID))
-                SendChatMessage(gsub(it, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+            if (sadb.interruptself) then
+                local it = gsub(sadb.InterruptSelfText, "(#spell#)", (GetSpellLink(spellID) or ""))
+                
+                local new_it, count = gsub(it, "#interruptedspellname#", replacementText)
+                it = new_it
+                
+                local finalMessage = gsub(it, "(#enemy#)", sourceName)
+                finalMessage = string.gsub(finalMessage, "[\\]", "")
+                
+                SendChatMessage(finalMessage, sadb.chatgroup, nil, nil)
+            end
+        end
+    elseif (sourcetype[COMBATLOG_FILTER_ME] and not sadb.interrupt) then
+        if ((destuid.target or destuid.focus) and (desttype[COMBATLOG_FILTER_HOSTILE_PLAYERS] or desttype[COMBATLOG_FILTER_HOSTILE_UNITS])) then
+            PlaySoundFile(sadb.sapath.."lockout.mp3");
+            if (not sadb.chatalerts) then
+                if (sadb.interruptenemy) then
+                    local it = gsub(sadb.InterruptEnemyText, "(#spell#)", (GetSpellLink(spellID) or ""))
+                    
+                    local new_it, count = gsub(it, "#interruptedspellname#", replacementText)
+                    it = new_it
+
+                    local finalMessage = gsub(it, "(#enemy#)", destName)
+                    finalMessage = string.gsub(finalMessage, "[\\]", "")
+
+                    SendChatMessage(finalMessage, sadb.chatgroup, nil, nil)
+                end
             end
         end
     end
@@ -341,7 +370,7 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
         return
     end
     
-    local timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName = select(1, ...);
+    local timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, _, extraSpellID = select(1, ...);
     
     for k in pairs(self.SA_TYPE) do
         desttype[k] = CombatLog_Object_IsA(destFlags, k)
@@ -387,7 +416,7 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
     elseif event == "SPELL_CAST_SUCCESS" then
         self:HandleCastSuccess(sourceGUID, sourceName, destName, spellID)
     elseif event == "SPELL_INTERRUPT" then
-        self:HandleInterrupt(sourceName, destName, spellID)
+        self:HandleInterrupt(sourceName, destName, spellID, extraSpellID)
     elseif event == "SPELL_CAST_START" then
         self:HandleCastStart(sourceGUID, sourceName, spellID)
     end
