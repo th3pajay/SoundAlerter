@@ -290,6 +290,7 @@ SoundAlerterSpells = {
         [1113809] = "frosttrap", --frost trap aura
         [1114311] = "freezingtrap",
         [111499] = "frosttrap",
+		[1133044] = "powershot",
         --warlock
         [115138] = "DrainMana",
         [1117928] = "fear2", --Howl of Terror

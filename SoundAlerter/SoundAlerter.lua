@@ -319,7 +319,13 @@ function SoundAlerter:HandleInterrupt(sourceName, destName, spellID, extraSpellI
                 local finalMessage = gsub(it, "(#enemy#)", sourceName)
                 finalMessage = string.gsub(finalMessage, "[\\]", "")
                 
-                SendChatMessage(finalMessage, sadb.chatgroup, nil, nil)
+                if not sadb.chatgroups.NONE then
+                    for channel, enabled in pairs(sadb.chatgroups) do
+                        if enabled and channel ~= "NONE" then
+                            SendChatMessage(finalMessage, channel, nil, nil)
+                        end
+                    end
+                end
             end
         end
     elseif (sourcetype[COMBATLOG_FILTER_ME] and not sadb.interrupt) then
@@ -335,7 +341,13 @@ function SoundAlerter:HandleInterrupt(sourceName, destName, spellID, extraSpellI
                     local finalMessage = gsub(it, "(#enemy#)", destName)
                     finalMessage = string.gsub(finalMessage, "[\\]", "")
 
-                    SendChatMessage(finalMessage, sadb.chatgroup, nil, nil)
+                    if not sadb.chatgroups.NONE then
+                        for channel, enabled in pairs(sadb.chatgroups) do
+                            if enabled and channel ~= "NONE" then
+                                SendChatMessage(finalMessage, channel, nil, nil)
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -437,13 +449,22 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
             if not css.chatAlert then
                 PlaySoundFile("Interface\\Addons\\SoundAlerter\\CustomSounds\\"..css.soundfilepath,"Master")
             else
-                local spell = gsub(css.chatalerttext, "(#spell#)", GetSpellLink(spellID))
+                local spell = gsub(css.chatalerttext, "([#]spell[#])", GetSpellLink(spellID))
                 local targetName = destuid[css.destuidfilter] and destName or sourceName
                 
+                local message = ""
                 if event == "SPELL_CAST_START" then
-                    SendChatMessage(gsub(spell, "(#enemy#)", ""), sadb.chatgroup, nil, nil)
+                    message = gsub(spell, "([#]enemy[#])", "")
                 else
-                    SendChatMessage(gsub(spell, "(#enemy#)", targetName), sadb.chatgroup, nil, nil)
+                    message = gsub(spell, "([#]enemy[#])", targetName)
+                end
+                
+                if not sadb.chatgroups.NONE then
+                    for channel, enabled in pairs(sadb.chatgroups) do
+                        if enabled and channel ~= "NONE" then
+                            SendChatMessage(message, channel, nil, nil)
+                        end
+                    end
                 end
             end
         end

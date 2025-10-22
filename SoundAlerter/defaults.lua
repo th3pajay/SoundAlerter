@@ -43,7 +43,7 @@ dbDefaults = {
 		saptextself = "I'm Sapped!",
 		blindtextfriend = "#friend# Is Blinded!",
 		trinketalerttext = "[#enemy#] Trinketted!",
-		chatgroup = "SAY",
+		chatgroups = {["SAY"] = false, ["PARTY"] = true, ["RAID"] = false, ["BATTLEGROUND"] = true, ["NONE"] = false,},
 		chatdownfriend = false,
 		interruptself = false,
 		trinketalert = false,
