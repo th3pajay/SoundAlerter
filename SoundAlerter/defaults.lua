@@ -1,65 +1,138 @@
 dbDefaults = {
 	profile = {
+		-- ===========================
+		-- General Settings
+		-- ===========================
+		sapath = SA_LOCALEPATH[GetLocale()] or "Interface\\Addons\\SoundAlerter\\voice\\",
+		debugmode = false,
+		spelldebug = false,
+
+		-- ===========================
+		-- Zone Settings
+		-- ===========================
 		all = false,
 		arena = true,
 		battleground = true,
 		field = true,
+
+		-- ===========================
+		-- Target Settings
+		-- ===========================
 		myself = true,
-		sapath = SA_LOCALEPATH[GetLocale()] or "Interface\\Addons\\SoundAlerter\\voice\\",
-		debugmode = false,
+		ArenaPartner = false,
+		enemyinrange = false,
+
+		-- ===========================
+		-- General Alerts
+		-- ===========================
 		trinket = true,
 		drinking = true,
 		class = true,
-		caonlyTF = true,
+
+		-- ===========================
+		-- Enemy Alerts (CC)
+		-- ===========================
+		blindenemy = true,
+		cycloneenemy = true,
+		fearenemy = true,
+		hexenemy = true,
+		polyenemy = true,
+		sapenemy = true,
+
+		-- ===========================
+		-- Enemy Alerts (Defensive)
+		-- ===========================
+		bubbleenemy = true,
 		bubbleeenemy = true,
 		stealthenemy = true,
+		prowlhenemy = true,
 		vanishalert = true,
+
+		-- ===========================
+		-- Enemy Alerts (Other)
+		-- ===========================
 		interruptenemy = true,
-		sapenemy = true,
-		sapselffriend = true,
-		cycloneenemy = true,
-		hexenemy = true,
-		fearenemy = true,
-		blindenemy = true,
+		enemyinterrupts = true,
+
+		-- ===========================
+		-- Self/Friend Alerts (CC)
+		-- ===========================
 		blindselffriend = true,
-		polyenemy = true,
 		cycloneselffriend = true,
-		hexselffriend = true,
 		fearselffriend = true,
-		bubbleenemy = true,
-		chatdownself = true,
+		hexselffriend = true,
+		sapselffriend = true,
+
+		-- ===========================
+		-- Target Filters
+		-- ===========================
+		caonlyTF = true,
 		vanishTF = true,
 		stealthTF = true,
-		InterruptEnemyText = "Interrupted #enemy#'s #interruptedspellname# with #spell#.",
-		InterruptSelfText = "#enemy# interrupted my #interruptedspellname# with #spell#.",
-		friendchat = "#enemy# casted #spell# on #friend#",
-		selfchat = "#enemy# casted #spell# on me!",
-		enemychat = "#spell# up on #enemy#",
-		enemybuffchat = "#enemy# casted #spell#",
-		sapselftext = "I'm Sapped!",
-		sapfriendtext = "#friend# is Sapped!",
-		bubbleenemytext = "#enemy# bubbled!",
-		blindtext = "#enemy# blinded me!",
-		saptextself = "I'm Sapped!",
-		blindtextfriend = "#friend# Is Blinded!",
-		trinketalerttext = "[#enemy#] Trinketted!",
-		chatgroups = {["SAY"] = false, ["PARTY"] = true, ["RAID"] = false, ["BATTLEGROUND"] = true, ["NONE"] = false,},
-		chatdownfriend = false,
-		interruptself = false,
-		trinketalert = false,
-		spelldebug = false,
+		prowlTF = true,
+
+		-- ===========================
+		-- Event Monitoring
+		-- ===========================
 		aruaApplied = false,
 		aruaRemoved = false,
 		castStart = false,
 		castSuccess = false,
 		interrupt = false,
-		ArenaPartner = false,
-		enemyinrange = false,
-		sayspell = true,
-		enemyinterrupts = true,
+
+		-- ===========================
+		-- Specific Spell Alerts
+		-- ===========================
 		PresenceofMind = false,
 		Starfire = false,
 		lavaburst = false,
+
+		-- ===========================
+		-- Chat Settings
+		-- ===========================
+		chatdownfriend = false,
+		chatdownself = true,
+		interruptself = false,
+		trinketalert = false,
+		sayspell = true,
+		chatgroups = {["SAY"] = false, ["PARTY"] = true, ["RAID"] = false, ["BATTLEGROUND"] = true, ["NONE"] = false,},
+
+		-- ===========================
+		-- Chat Messages - Interrupts
+		-- ===========================
+		InterruptEnemyText = "Interrupted #enemy#'s #interruptedspellname# with #spell#.",
+		InterruptSelfText = "#enemy# interrupted my #interruptedspellname# with #spell#.",
+
+		-- ===========================
+		-- Chat Messages - General
+		-- ===========================
+		friendchat = "#enemy# casted #spell# on #friend#",
+		selfchat = "#enemy# casted #spell# on me!",
+		enemychat = "#spell# up on #enemy#",
+		enemybuffchat = "#enemy# casted #spell#",
+
+		-- ===========================
+		-- Chat Messages - Sap
+		-- ===========================
+		sapselftext = "I'm Sapped!",
+		saptextself = "I'm Sapped!",
+		sapfriendtext = "#friend# is Sapped!",
+
+		-- ===========================
+		-- Chat Messages - Blind
+		-- ===========================
+		blindtext = "#enemy# blinded me!",
+		blindtextfriend = "#friend# Is Blinded!",
+
+		-- ===========================
+		-- Chat Messages - Other
+		-- ===========================
+		bubbleenemytext = "#enemy# bubbled!",
+		trinketalerttext = "[#enemy#] Trinketted!",
+
+		-- ===========================
+		-- Custom Configuration
+		-- ===========================
 		custom = {},
 		cspell = "",
 	}

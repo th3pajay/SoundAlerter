@@ -9,12 +9,14 @@ SoundAlerter provides **instant, critical voice alerts** for enemy and friendly 
 Never miss a "Cyclone," "Divine Shield," or "Shadowmeld" again!
 
 ## ✨ Key Updates
-| Feature | Description |
-| :--- | :--- |
-| **Expanded Spell Content** | Added many new abilities including **Artifacts, Legendaries, and class spells**, complete with voice-cloned audio. |
-| **Ascension Integration** | Spell IDs are piggybacked on the Ascension database (using the "Show Ids In tooltips" feature) for expanded, though preliminary, alerts. |
-| **Modernized Structure** | Spells are consolidated by Class/Name and now auto-support standard and private server ID formats (e.g., `[SpellID]` and `11[SpellID]`). |
-| **Full Options Support** | All new spells are integrated with in-game toggle options for easy customization (`/sa`). **Tooltips are now supported in the options menu.** |
+| Feature                    | Description                                                                                                                                   |
+|:---------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------|
+| **Expanded Spell Content** | Added many new abilities including **Artifacts, Legendaries, and class spells**, complete with voice-cloned audio.                            |
+| **Ascension Integration**  | Spell IDs are piggybacked on the Ascension database (using the "Show Ids In tooltips" feature) for expanded, though preliminary, alerts.      |
+| **Modernized Structure**   | Spells are consolidated by Class/Name and now auto-support standard and private server ID formats (e.g., `[SpellID]` and `11[SpellID]`).      |
+| **Full Options Support**   | All new spells are integrated with in-game toggle options for easy customization (`/sa`). **Tooltips are now supported in the options menu.** |
+| **Minimap Button**         | Brand new minimap button for toggling the options.                                                                                            |
+| **Multi-channel output**   | Now supports multiple or single channel (say, party, raid, bg) outputs for all alerts.                                                        |
 
 > **Note:** Currently testing the feature that announces the interrupted spell's name/ID directly in the chat alert. As this is an early release for this server, spell IDs are not fully confirmed. **Expect potential errors.**
 
@@ -36,7 +38,7 @@ Download the latest release ZIP and **extract the entire and only `SoundAlerter`
 `SpellData` folder is only for tracking currently planned spells for the addon, it can be ignored.
 
 ### 2. In-Game Configuration
-Log in and open the options menu with the command: `/sa`.
+Log in and open the options menu with the command: `/sa` or search for the moveable minimap button (`battle_shout`) for easy access.
 
 New alerts are enabled by default. Customize toggles and volume as needed.
 
@@ -44,7 +46,8 @@ New alerts are enabled by default. Customize toggles and volume as needed.
 
 ## 🛠️ Contribution & Development
 
-Contributions are welcome! Updates will be made as time allows, but feel free to maintain and spin-off the addon. New work should be merged into the `develop` branch.
+Updates will be made as time allows, but feel free to fork when and if updates dry up. 
+New functions and enhancements wil be merged into the `develop` branch first, always.
 
 ---
 

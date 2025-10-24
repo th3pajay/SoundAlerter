@@ -62,6 +62,101 @@ self.SA_TYPE = {
 
 local function log(msg) DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF22SA|r:"..msg) end
 
+function SoundAlerter:ChangeProfile()
+	sadb = self.db1.profile
+	for k,v in SoundAlerter:IterateModules() do
+		if type(v.ChangeProfile) == 'function' then
+			v:ChangeProfile()
+		end
+	end
+end
+
+function SoundAlerter:AddOption(key, table)
+	self.options.args[key] = table
+end
+
+local SoundAlerterMinimapButton
+local BUTTON_TEXTURE = "Interface\\ICONS\\ability_warrior_battleshout"
+
+function SoundAlerter:CreateMinimapButton()
+    local db = sadb
+    local buttonSize = 24
+    local iconSize = 24 
+    local initialX = 5
+    local initialY = -5
+    
+    SoundAlerterMinimapButton = CreateFrame("Button", "SoundAlerterMinimapButton", Minimap)
+    SoundAlerterMinimapButton:SetSize(buttonSize, buttonSize)
+
+    SoundAlerterMinimapButton:SetNormalTexture("")
+    SoundAlerterMinimapButton:SetPushedTexture("")
+    
+    SoundAlerterMinimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    SoundAlerterMinimapButton:GetHighlightTexture():SetDesaturated(true)
+    SoundAlerterMinimapButton:GetHighlightTexture():SetBlendMode("ADD")
+    
+    local icon = SoundAlerterMinimapButton:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(BUTTON_TEXTURE)
+    icon:SetSize(iconSize, iconSize) 
+    icon:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
+    
+    local border = SoundAlerterMinimapButton:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
+    border:SetSize(iconSize, iconSize) 
+    border:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
+    border:SetVertexColor(1.0, 1.0, 1.0)
+    
+    SoundAlerterMinimapButton:SetFrameStrata("MEDIUM")
+    SoundAlerterMinimapButton:SetMovable(true)
+    SoundAlerterMinimapButton:EnableMouse(true)
+    SoundAlerterMinimapButton:RegisterForDrag("LeftButton")
+
+    SoundAlerterMinimapButton:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" or button == "RightButton" then
+            SoundAlerter:ShowConfig() 
+        end
+    end)
+    
+    SoundAlerterMinimapButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("SoundAlerter")
+        GameTooltip:AddLine("Click to open/close options. (Drag to move)")
+        GameTooltip:Show()
+    end)
+    
+    SoundAlerterMinimapButton:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+
+    SoundAlerterMinimapButton:SetScript("OnDragStart", function(self)
+        self:StartMoving()
+    end)
+
+    SoundAlerterMinimapButton:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local minimapX, minimapY = Minimap:GetCenter()
+        local buttonX, buttonY = self:GetCenter()
+        
+        db.MinimapButtonPosition = {
+            x = buttonX - minimapX,
+            y = buttonY - minimapY,
+        }
+    end)
+
+    if db.MinimapButtonPosition then
+        SoundAlerterMinimapButton:ClearAllPoints()
+        SoundAlerterMinimapButton:SetPoint("CENTER", Minimap, "CENTER", db.MinimapButtonPosition.x, db.MinimapButtonPosition.y)
+    else
+        SoundAlerterMinimapButton:SetPoint("TOPLEFT", Minimap, "TOPLEFT", initialX, initialY)
+    end
+    
+    if db.MinimapButtonHidden then
+        SoundAlerterMinimapButton:Hide()
+    else
+        SoundAlerterMinimapButton:Show()
+    end
+end
+
 function SoundAlerter:OnInitialize()
     if SoundAlerterSpells then
         self.spellList = SoundAlerterSpells
@@ -107,6 +202,7 @@ function SoundAlerter:OnInitialize()
     AceConfigDialog:AddToBlizOptions("SoundAlerter_bliz", "SoundAlerter")
     
     self:Print("|cffFF7D0ASoundAlerter|r by |cff0070DEth3pajay|r - /SA ")
+	self:CreateMinimapButton()
 end
 
 function SoundAlerter:OnEnable()

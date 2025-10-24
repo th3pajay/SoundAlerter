@@ -16,21 +16,19 @@ local function initOptions()
 	end
 	AceConfig:RegisterOptionsTable("SoundAlerter", SoundAlerter.options)
 end
+
 function SoundAlerter:ShowConfig()
 	initOptions()
-	AceConfigDialog:Open("SoundAlerter")
-end
-
-function SoundAlerter:ChangeProfile()
-	sadb = self.db1.profile
-	for k,v in SoundAlerter:IterateModules() do
-		if type(v.ChangeProfile) == 'function' then
-			v:ChangeProfile()
-		end
-	end
-end
-function SoundAlerter:AddOption(key, table)
-	self.options.args[key] = table
+    local configName = "SoundAlerter"
+    
+    local dialogData = AceConfigDialog.OpenFrames[configName]
+    local frame = dialogData and dialogData.frame
+    
+    if frame and frame:IsVisible() then
+        frame:Hide()
+    else
+	    AceConfigDialog:Open(configName)
+    end
 end
 
 local function setOption(info, value)
