@@ -203,6 +203,12 @@ function SoundAlerter:OnInitialize()
     
     self:Print("|cffFF7D0ASoundAlerter|r by |cff0070DEth3pajay|r - /SA ")
 	self:CreateMinimapButton()
+
+	-- Initialize Spell Database for Find Spell feature
+	if not self:LoadSpellDatabase() then
+		-- Database not found or outdated - build from scratch
+		self:BuildSpellDatabase()
+	end
 end
 
 function SoundAlerter:OnEnable()

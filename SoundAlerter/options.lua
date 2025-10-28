@@ -1118,6 +1118,117 @@ function SoundAlerter:OnOptionsCreate()
 			},
 		},
 	})
+	-- Find Spell Tab
+	self:AddOption('FindSpell', {
+		type = 'group',
+		name = "Find Spell",
+		desc = "Search for spell IDs and information",
+		order = 2.5,
+		args = {
+			description = {
+				type = 'description',
+				name = "Search the spell database to find spell IDs, ranks, and tooltips.\n\nThis tool helps you find spell IDs when adding new spells to spellist.lua.\n",
+				fontSize = "medium",
+				order = 1,
+			},
+			openFinder = {
+				type = 'execute',
+				name = "Open Spell Finder Window",
+				desc = "Open the interactive spell search window with searchable results",
+				width = "full",
+				order = 2,
+				func = function()
+					if not SoundAlerter.findSpellFrame then
+						SoundAlerter.findSpellFrame = SoundAlerter:CreateFindSpellFrame()
+					end
+					SoundAlerter.findSpellFrame:Show()
+					-- Bring to front
+					if SoundAlerter.findSpellFrame.frame then
+						SoundAlerter.findSpellFrame.frame:Raise()
+					end
+				end,
+			},
+			separator1 = {
+				type = 'header',
+				name = "Database Management",
+				order = 3,
+			},
+			rebuild = {
+				type = 'execute',
+				name = "Rebuild Spell Database",
+				desc = "Rebuild the spell database from scratch (scans 70,000 spell IDs, takes ~3-4 seconds)",
+				width = "full",
+				order = 4,
+				confirm = true,
+				confirmText = "This will scan 70,000 spell IDs and take 3-4 seconds. Continue?",
+				func = function()
+					SoundAlerter:RebuildSpellDatabase()
+				end,
+			},
+			separator2 = {
+				type = 'header',
+				name = "Database Information",
+				order = 5,
+			},
+			dbstats = {
+				type = 'description',
+				name = function()
+					local db = SoundAlerter.spellDatabase
+					local count = SoundAlerter:CountSpells()
+					local status
+
+					if db.isBuilding then
+						status = string.format("Status: |cFFFFAA00Building database... %.1f%% complete|r\n", db.progress)
+						status = status .. string.format("Progress: %d / 70,000 spell IDs scanned\n", db.totalScanned)
+					else
+						status = string.format("Status: |cFF00FF00Ready|r\n")
+						status = status .. string.format("Spells Indexed: %d\n", count)
+
+						if db.lastUpdate > 0 then
+							local age = time() - db.lastUpdate
+							local ageText
+							if age < 60 then
+								ageText = "just now"
+							elseif age < 3600 then
+								ageText = math.floor(age / 60) .. " minutes ago"
+							elseif age < 86400 then
+								ageText = math.floor(age / 3600) .. " hours ago"
+							else
+								ageText = math.floor(age / 86400) .. " days ago"
+							end
+							status = status .. string.format("Last Updated: %s\n", ageText)
+						end
+					end
+
+					-- Memory estimate
+					local memKB = math.floor((count * 5 + #db.names * 25) / 1024)
+					status = status .. string.format("Estimated Memory: ~%d KB\n", memKB)
+
+					return "\n" .. status
+				end,
+				fontSize = "medium",
+				order = 6,
+			},
+			separator3 = {
+				type = 'header',
+				name = "Usage Instructions",
+				order = 7,
+			},
+			instructions = {
+				type = 'description',
+				name = "How to use:\n" ..
+					   "1. Click 'Open Spell Finder Window' above\n" ..
+					   "2. Type a spell name (e.g., 'Healing Touch' or 'Poly')\n" ..
+					   "3. Optionally filter by rank number\n" ..
+					   "4. Click Search or press Enter\n" ..
+					   "5. Hover over results to see spell tooltips\n" ..
+					   "6. Copy the spell ID to add to spellist.lua\n\n" ..
+					   "The database shows both retail and Ascension (11-prefixed) spell IDs.",
+				fontSize = "medium",
+				order = 8,
+			},
+		}
+	})
 	self:AddOption('custom', {
 		type = 'group',
 		name = L["Custom Alerts"],

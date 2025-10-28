@@ -1,63 +1,73 @@
-# SoundAlerter: Enhanced for WoW Ascension: Classic+ (20251014)
+# SoundAlerter for WoW Ascension: Classic+
 
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
 
-SoundAlerter provides **instant, critical voice alerts** for enemy and friendly spell usage. This release significantly overhauls the addon for better reliability, easier maintenance, and expanded spell coverage on **WoW Ascension: Classic+**.
+**Instant voice alerts for critical PvP spells.** Never miss Cyclone, Divine Shield, or enemy cooldowns again.
 
-Never miss a "Cyclone," "Divine Shield," or "Shadowmeld" again!
+## Features
 
-## ✨ Key Updates
-| Feature                    | Description                                                                                                                                   |
-|:---------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------|
-| **Expanded Spell Content** | Added many new abilities including **Artifacts, Legendaries, and class spells**, complete with voice-cloned audio.                            |
-| **Ascension Integration**  | Spell IDs are piggybacked on the Ascension database (using the "Show Ids In tooltips" feature) for expanded, though preliminary, alerts.      |
-| **Modernized Structure**   | Spells are consolidated by Class/Name and now auto-support standard and private server ID formats (e.g., `[SpellID]` and `11[SpellID]`).      |
-| **Full Options Support**   | All new spells are integrated with in-game toggle options for easy customization (`/sa`). **Tooltips are now supported in the options menu.** |
-| **Minimap Button**         | Brand new minimap button for toggling the options.                                                                                            |
-| **Multi-channel output**   | Now supports multiple or single channel (say, party, raid, bg) outputs for all alerts.                                                        |
+- **Voice Alerts** - Real-time audio for CC, interrupts, and defensive cooldowns
+- **Spell Finder** - Built-in tool to search 12,000+ spells with IDs and tooltips
+- **Ascension Support** - Auto-detects both retail and 11-prefixed spell IDs
+- **Customizable** - Toggle alerts per spell via `/sa` options menu
+- **Multi-Channel Output** - Send alerts to say, party, raid, or battleground chat
+- **Minimap Button** - Draggable button for quick access
+- **Dual Language** - English (major updates, encoded with 40% size reduction) and Spanish voice packs
 
-> **Note:** Currently testing the feature that announces the interrupted spell's name/ID directly in the chat alert. As this is an early release for this server, spell IDs are not fully confirmed. **Expect potential errors.**
+## WIP
+- **Voice Rework**
+- **Proximity Alerts**
+- **Additional Performance Optimizations**
 
----
+## Installation
 
-## 🛡️ Core Features
+1. Download the latest release
+2. Extract **SoundAlerter** folder to `.../Interface/AddOns/`
+3. Restart WoW or `/reload`
 
-* **Voice Alerts:** Real-time audio alerts for major CC, interrupts, and defensive cooldowns.
-* **Customization:** Toggle alerts on/off via the in-game options menu (`/sa`).
-* **Localization:** Includes English and Spanish voice packs.
-* **Reliable Hooking:** Integrates directly and efficiently with the WoW Combat Log.
+## Usage
 
----
+**Open Options:**
+- Type `/sa` in-game
+- Or click the minimap button (battle shout icon)
 
-## 🚀 Usage & Setup
+**Find Spell IDs:**
+1. `/sa` → **Find Spell** tab
+2. Click "Open Spell Finder Window"
+3. Search by spell name (e.g., "Polymorph", "Healing Touch")
+4. View results with retail and Ascension IDs
+5. Hover for tooltips
 
-### 1. Installation
-Download the latest release ZIP and **extract the entire and only `SoundAlerter` folder** into your WoW AddOns directory (e.g., `.../Interface/AddOns/`).
-`SpellData` folder is only for tracking currently planned spells for the addon, it can be ignored.
+**Add Custom Spells:**
+- Use Find Spell to discover spell IDs
+- Edit `spellist.lua` to add new alerts
+- Add corresponding MP3 file to `Voice/` folder
 
-### 2. In-Game Configuration
-Log in and open the options menu with the command: `/sa` or search for the moveable minimap button (`battle_shout`) for easy access.
+## Performance
 
-New alerts are enabled by default. Customize toggles and volume as needed.
+- **Database Build:** ~3.5 seconds (first login)
+- **Search Speed:** <1ms with indexing
+- **Memory Usage:** ~485 KB
+- **Subsequent Logins:** ~2 seconds (loads from cache)
 
----
+## Development
 
-## 🛠️ Contribution & Development
+New features and enhancements are merged to `develop` branch first, then `main`.
 
-Updates will be made as time allows, but feel free to fork when and if updates dry up. 
-New functions and enhancements wil be merged into the `develop` branch first, always.
+### Technical Details
+- **Optimized Spell Database** - String interning, multi-level indexing, LRU caching
+- **SavedVariables Persistence** - Database persists between sessions
+- **Non-blocking Scanning** - Background spell ID scanning (70,000 IDs in chunks)
+- **WoW API Integration** - Uses `GetSpellInfo()` and `GameTooltip` for spell data
 
----
+## Credits
 
-## 📜 Credits
-
-Have fun and fair winds fellow adventurers.
-
-| Role | Name / Handle |
-| :--- | :--- |
+| Role | Name |
+|------|------|
 | **Original Author** | Trolollolol |
 | **Current Maintainer** | th3pajay (October 2025) |
 
+Fair winds, fellow adventurers! 🌊
 *th3pajay / Starmistx - An old feral (https://warcraftmovies.com/pv.php?t=3&l=pajay)*
