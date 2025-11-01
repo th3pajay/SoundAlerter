@@ -10,7 +10,7 @@
 
 - **Quick Start** - Get arena-ready in 60 seconds with guided setup
 - **Voice Alerts** - 450+ spells with intent-based organization (defensives, CC, cooldowns)
-- **Proximity Alerts** - Detect stealthed enemies nearby (Rogues/Druids)
+- **Proximity Alerts** - Detect nearby enemies
 - **Spell Finder** - Search 12,000+ spells with IDs and tooltips
 - **Ascension Support** - Auto-detects retail and 11-prefixed spell IDs
 - **Multi-Channel Chat** - Alert teammates via party, raid, or battleground chat
