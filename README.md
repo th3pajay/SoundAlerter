@@ -1,4 +1,4 @@
-# SoundAlerter for WoW Ascension: Classic+
+# SoundAlerter for Project Ascension (Bronzebeard)
 
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
@@ -8,18 +8,14 @@
 
 ## Features
 
-- **Voice Alerts** - Real-time audio for CC, interrupts, and defensive cooldowns
-- **Spell Finder** - Built-in tool to search 12,000+ spells with IDs and tooltips
-- **Ascension Support** - Auto-detects both retail and 11-prefixed spell IDs
-- **Customizable** - Toggle alerts per spell via `/sa` options menu
-- **Multi-Channel Output** - Send alerts to say, party, raid, or battleground chat
-- **Minimap Button** - Draggable button for quick access
-- **Dual Language** - English (major updates, encoded with 40% size reduction) and Spanish voice packs
-
-## WIP
-- **Voice Rework**
-- **Proximity Alerts**
-- **Additional Performance Optimizations**
+- **Quick Start** - Get arena-ready in 60 seconds with guided setup
+- **Voice Alerts** - 450+ spells with intent-based organization (defensives, CC, cooldowns)
+- **Proximity Alerts** - Detect stealthed enemies nearby (Rogues/Druids)
+- **Spell Finder** - Search 12,000+ spells with IDs and tooltips
+- **Ascension Support** - Auto-detects retail and 11-prefixed spell IDs
+- **Multi-Channel Chat** - Alert teammates via party, raid, or battleground chat
+- **Minimap Button** - Quick access with draggable icon
+- **Dual Language** - English and Spanish voice packs
 
 ## Installation
 
@@ -27,23 +23,23 @@
 2. Extract **SoundAlerter** folder to `.../Interface/AddOns/`
 3. Restart WoW or `/reload`
 
-## Usage
+## Quick Setup
 
-**Open Options:**
-- Type `/sa` in-game
-- Or click the minimap button (battle shout icon)
+1. Type `/sa` in-game (or click minimap button)
+2. Follow **Quick Start** tab (zones, alert scope, audio)
+3. Enter arena/BG to hear voice alerts
 
-**Find Spell IDs:**
-1. `/sa` → **Find Spell** tab
-2. Click "Open Spell Finder Window"
-3. Search by spell name (e.g., "Polymorph", "Healing Touch")
-4. View results with retail and Ascension IDs
-5. Hover for tooltips
+## Advanced Usage
 
-**Add Custom Spells:**
-- Use Find Spell to discover spell IDs
-- Edit `spellist.lua` to add new alerts
-- Add corresponding MP3 file to `Voice/` folder
+**Customize Alerts:**
+- **Voice Alerts** tab - Toggle 450+ spells by class/intent
+- **Proximity Alerts** tab - Detect nearby enemies
+- **Advanced** tab - Create custom alerts
+- **Developer Tools** tab - Find spell IDs for new alerts
+
+**Chat Integration:**
+- Enable multi-channel output in Voice Alerts > Chat Alerts
+- Announce CC, interrupts, and cooldowns to teammates
 
 ## Performance
 

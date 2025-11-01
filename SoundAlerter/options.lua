@@ -86,6 +86,137 @@ function SoundAlerter:OnOptionsCreate()
 	sadb = self.db1.profile
 	self:AddOption("profiles", LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db1))
 	self.options.args.profiles.order = -1
+
+	-- ===========================
+	-- QUICK START TAB (SLC: Simple)
+	-- ===========================
+	self:AddOption('QuickStart', {
+		type = 'group',
+		name = "Quick Start",
+		desc = "Get arena-ready in 60 seconds. Select your PvP zones and essential alerts. Advanced users can customize 450+ spells in Voice Alerts.",
+		order = 0.5,
+		args = {
+			description = {
+				type = 'description',
+				name = "|cff00FF00Welcome to SoundAlerter!|r\n\nThis Quick Start guide will help you configure the essential settings to get started in PvP. For advanced customization, visit the Voice Alerts and other tabs.\n",
+				fontSize = "medium",
+				order = 1,
+			},
+			enableZones = {
+				type = 'group',
+				inline = true,
+				name = "1. Enable Zones",
+				desc = "Select where you want SoundAlerter to be active",
+				set = setOption,
+				get = getOption,
+				order = 2,
+				args = {
+					arena = {
+						type = 'toggle',
+						name = "Arena",
+						desc = "Enable voice alerts in Arena matches (recommended for competitive PvP)",
+						width = "full",
+						order = 1,
+					},
+					battleground = {
+						type = 'toggle',
+						name = "Battleground",
+						desc = "Enable voice alerts in Battlegrounds (recommended for large-scale PvP)",
+						width = "full",
+						order = 2,
+					},
+					field = {
+						type = 'toggle',
+						name = "World PvP",
+						desc = "Enable voice alerts in open world PvP zones",
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+			alertScope = {
+				type = 'group',
+				inline = true,
+				name = "2. Alert Scope",
+				desc = "Choose how many enemies trigger alerts",
+				set = setOption,
+				get = getOption,
+				order = 3,
+				args = {
+					scopeDescription = {
+						type = 'description',
+						name = "|cffFFD700Recommended:|r Target/Focus for Arena, All Enemies for Battlegrounds\n",
+						order = 1,
+					},
+					myself = {
+						type = 'toggle',
+						name = "Target and Focus Only",
+						desc = "Only alert when your current target/focus casts spells, or when enemies cast spells on you (best for Arena)",
+						disabled = function() return sadb.enemyinrange end,
+						width = "full",
+						order = 2,
+					},
+					enemyinrange = {
+						type = 'toggle',
+						name = "All Enemies in Range",
+						desc = "Alert for all enemy spells in combat log range (best for Battlegrounds)",
+						disabled = function() return sadb.myself end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+			essentialAlerts = {
+				type = 'group',
+				inline = true,
+				name = "3. Essential Alerts (Pre-configured)",
+				desc = "Critical spells that should always be announced",
+				order = 4,
+				args = {
+					essentialDescription = {
+						type = 'description',
+						name = "These essential PvP spells are |cff00FF00enabled by default|r. Fine-tune individual spells in the Voice Alerts tab.\n\n|cffFFFFFFEnemy Defensives:|r Divine Shield, Ice Block, Barkskin\n|cffFFFFFFEnemy Crowd Control:|r Cyclone, Polymorph, Blind, Fear, Hex\n|cffFFFFFFSelf Alerts:|r CC effects on you (Cyclone, Poly, etc.)\n",
+						fontSize = "medium",
+						order = 1,
+					},
+				},
+			},
+			audioSettings = {
+				type = 'group',
+				inline = true,
+				name = "4. Audio Settings",
+				desc = "Volume and language preferences",
+				order = 5,
+				args = {
+					volumeDescription = {
+						type = 'description',
+						name = "Volume is controlled by WoW's Master Volume slider. Voice alerts will respect your game volume settings.\n",
+						order = 1,
+					},
+					languageNote = {
+						type = 'description',
+						name = "|cffFFD700Current Language:|r " .. (GetLocale() == "esES" and "Spanish (Limited)" or "English") .. "\n\nTo change languages, modify your WoW client locale. SoundAlerter auto-detects your game language.\n",
+						order = 2,
+					},
+				},
+			},
+			nextSteps = {
+				type = 'group',
+				inline = true,
+				name = "Next Steps",
+				order = 6,
+				args = {
+					nextStepsDescription = {
+						type = 'description',
+						name = "|cff00FF00You're all set!|r Enter an arena or battleground to hear voice alerts.\n\n|cffFFFFFFAdvanced Configuration:|r\n• |cffFFD700Voice Alerts|r - Customize 450+ spell alerts per class\n• |cffFFD700Proximity Alerts|r - Detect enemy stealth nearby\n• |cffFFD700Chat Alerts|r - Send spell announcements to party/raid chat\n\n|cffFF0000Need Help?|r Type |cffFFD700/sa|r to reopen this menu anytime.\n\n|cffADD8E6th3pajay|r",
+						fontSize = "medium",
+						order = 1,
+					},
+				},
+			},
+		},
+	})
+
 	self:AddOption('General', {
 		type = 'group',
 		name = "General",
@@ -125,6 +256,12 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Enabled outside Battlegrounds and arenas",
 						disabled = function() return sadb.all end,
 						order = 4,
+					},
+					ignorePVEMode = {
+						type = 'toggle',
+						name = "Ignore PVE Mode Players",
+						desc = "Don't alert for players in PVE Mode in World PvP (not active in BGs/Arenas)",
+						order = 5,
 					},
 					AlertConditions = {
 						type = 'group',
@@ -279,10 +416,154 @@ function SoundAlerter:OnOptionsCreate()
 			},
 		}
 	})
+
+	-- ===========================
+	-- PROXIMITY ALERTS TAB (SLC: Lovable)
+	-- ===========================
+	self:AddOption('ProximityAlerts', {
+		type = 'group',
+		name = "Proximity Alerts",
+		desc = "Detect enemy stealthed players nearby and get voice alerts. Perfect for spotting Rogues and Druids in stealth.",
+		order = 2.5,
+		args = {
+			description = {
+				type = 'description',
+				name = "|cffFFD700Proximity Alerts|r detect hostile players near you by checking targets and mouseovers.\n\nThis feature is especially useful for:\n• Detecting stealthed Rogues and Druids\n• Awareness in world PvP \n• Preventing ganks and ambushes\n\n|cffFF0000Important:|r Proximity detection only works when you target or mouseover an enemy player. Limited alerts are available based on combat logs.\n",
+				fontSize = "medium",
+				order = 1,
+			},
+			enableGroup = {
+				type = 'group',
+				inline = true,
+				name = "Enable Proximity Detection",
+				set = setOption,
+				get = getOption,
+				order = 2,
+				args = {
+					proximityEnabled = {
+						type = 'toggle',
+						name = "Enable Proximity Alerts",
+						desc = "Master toggle for proximity detection system",
+						width = "full",
+						order = 1,
+					},
+				},
+			},
+			zonesGroup = {
+				type = 'group',
+				inline = true,
+				name = "Active Zones",
+				desc = "Select where proximity alerts should be active",
+				set = setOption,
+				get = getOption,
+				order = 3,
+				args = {
+					proximityWorld = {
+						type = 'toggle',
+						name = "World PvP",
+						desc = "Enable proximity alerts in open world PvP zones",
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 1,
+					},
+					proximityBattleground = {
+						type = 'toggle',
+						name = "Battlegrounds",
+						desc = "Enable proximity alerts in battlegrounds (useful for detecting flag carriers and node defenders)",
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 2,
+					},
+					proximityArena = {
+						type = 'toggle',
+						name = "Arena",
+						desc = "Enable proximity alerts in arenas (less useful due to small arena size)",
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+			cooldownGroup = {
+				type = 'group',
+				inline = true,
+				name = "Alert Cooldown",
+				desc = "Prevent alert spam for the same player",
+				set = setOption,
+				get = getOption,
+				order = 4,
+				args = {
+					proximityCooldown = {
+						type = 'range',
+						name = "Cooldown Duration (seconds)",
+						desc = "Time before the same player can trigger another proximity alert. Prevents spam while still alerting to threats.",
+						min = 5,
+						max = 120,
+						step = 5,
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 1,
+					},
+				},
+			},
+			chatIntegration = {
+				type = 'group',
+				inline = true,
+				name = "Chat Integration",
+				desc = "Send proximity alerts to chat channels",
+				set = setOption,
+				get = getOption,
+				order = 5,
+				args = {
+					proximityChat = {
+						type = 'toggle',
+						name = "Send Chat Messages",
+						desc = "Announce proximity detections in chat (useful for alerting teammates)",
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 1,
+					},
+					proximityChatText = {
+						type = 'input',
+						name = "Chat Message Template",
+						desc = "Customize the chat message. Available placeholders:\n#class# - Enemy class name\n#player# - Enemy player name\n\nExample: [#class#] #player# detected nearby!",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityChat end,
+						width = 'full',
+						order = 2,
+					},
+				},
+			},
+			futureFeatures = {
+				type = 'group',
+				inline = true,
+				name = "Future Features (Placeholder)",
+				order = 6,
+				args = {
+					futureDescription = {
+						type = 'description',
+						name = "|cff808080Objective Alerts (Coming Soon)|r\n\nFuture versions will include alerts for:\n• Battleground flag pickups (WSG, EOTS)\n• Flag captures and returns\n• Base assaults (Arathi Basin)\n\nThis section is reserved for battlefield awareness features.\n",
+						fontSize = "medium",
+						order = 1,
+					},
+					objectiveAlertsEnabled = {
+						type = 'toggle',
+						name = "Enable Objective Alerts (Not Implemented)",
+						desc = "Placeholder for future battleground objective detection",
+						disabled = true,
+						order = 2,
+					},
+				},
+			},
+		},
+	})
+
+	-- ===========================
+	-- VOICE ALERTS TAB (SLC: Lovable)
+	-- ===========================
 	self:AddOption('Spells', {
 		type = 'group',
-		name = "Spells",
-		desc = "Spell Options",
+		name = "Voice Alerts",
+		desc = "Customize which enemy and friendly spells trigger voice alerts. Organized by strategic purpose to help you focus on what matters in PvP.",
 		order = 2,
 		args = {
 			spellGeneral = {
@@ -359,8 +640,8 @@ function SoundAlerter:OnOptionsCreate()
 			spellauraApplied = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Buffs",
-				desc = "Alerts you when your enemy gains a buff, or uses a cooldown",
+				name = "Enemy Defensives & Buffs",
+				desc = "Alert when enemies use defensive cooldowns or gain important buffs. Track when to pressure or wait out immunities.",
 				set = setOption,
 				get = getOption,
 				disabled = function() return sadb.aruaApplied end,
@@ -401,7 +682,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffFF7D0ADruid|r",
 						order = 5,
-						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1116974,1398191,1169369},"auraApplied"),	
+						args = listOption({1161336,1129166,1122812,1117116,1153312,1122842,1153201,1150334,1101850,1398191,1169369},"auraApplied"),	
 					},
 					dk	= {
 						type = 'group',
@@ -478,8 +759,8 @@ function SoundAlerter:OnOptionsCreate()
 			spellAuraRemoved = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Buff Down",
-				desc = "Alerts you when enemy buffs or used cooldowns are off the enemy",
+				name = "Enemy Defensives Expired",
+				desc = "Alert when enemy defensive cooldowns expire. Know when it's safe to go offensive again.",
 				set = setOption,
 				get = getOption,
 				disabled = function() return sadb.auraRemoved end,
@@ -546,8 +827,8 @@ function SoundAlerter:OnOptionsCreate()
 			spellCastStart = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Spell Casting",
-				desc = "Alerts you when an enemy is attempting to cast a spell on you or another player",
+				name = "Enemy Crowd Control (Cast Start)",
+				desc = "Alert when enemies start casting CC spells like Polymorph, Cyclone, or Fear. Gives you time to interrupt or react.",
 				disabled = function() return sadb.castStart end,
 				set = setOption,
 				get = getOption,
@@ -628,8 +909,8 @@ function SoundAlerter:OnOptionsCreate()
 			spellCastSuccess = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Cooldown Abilities",
-				desc = "Alerts you when enemies have used cooldowns",
+				name = "Enemy Offensive Cooldowns",
+				desc = "Alert when enemies use major offensive cooldowns. Know when burst damage windows are active and when to play defensively.",
 				disabled = function() return sadb.castSuccess end,
 				set = setOption,
 				get = getOption,
@@ -710,8 +991,8 @@ function SoundAlerter:OnOptionsCreate()
 			enemydebuff = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Debuff",
-				desc = "Alerts you when you (or your arena partner) have casted a CC on an enemy",
+				name = "Your CC on Enemies",
+				desc = "Alert when you or your arena partner successfully land crowd control on enemies. Confirms CC application for coordination.",
 				disabled = function() return sadb.dEnemyDebuff end,
 				set = setOption,
 				get = getOption,
@@ -736,8 +1017,8 @@ function SoundAlerter:OnOptionsCreate()
 			enemydebuffdown = {
 				type = 'group',
 				--inline = true,
-				name = "Enemy Debuff Down",
-				desc = "Alerts you when your (or your arena partner) casted CC's on an enemy is down",
+				name = "Your CC Expired on Enemies",
+				desc = "Alert when your crowd control effects on enemies expire. Know when enemies are free and can act again.",
 				disabled = function() return sadb.eEnemyDebuffDown end,
 				set = setOption,
 				get = getOption,
@@ -1087,8 +1368,8 @@ function SoundAlerter:OnOptionsCreate()
 			FriendDebuff = {
 				type = 'group',
 				--inline = true,
-				name = "Arena partner Enemy Spell Casting",
-				desc = "Alerts you when an enemy is casting a spell targetted at your arena partner",
+				name = "Arena Partner Under Attack",
+				desc = "Alert when enemies cast spells targeting your arena partner. React quickly to peel or assist your teammate.",
 				disabled = function() return sadb.dArenaPartner end,
 				set = setOption,
 				get = getOption,
@@ -1097,8 +1378,8 @@ function SoundAlerter:OnOptionsCreate()
 			},
 			FriendDebuffSuccess = {
 			type = 'group',
-			name = "Arena partner CCs/Debuffs",
-			desc = "Alerts you when your arena partner gets CC'd",
+			name = "Arena Partner CC'd",
+			desc = "Alert when your arena partner gets crowd controlled. Coordinate defensive cooldowns or peels to protect your teammate.",
 			disabled = function() return sadb.dArenaPartner end,
 			set = setOption,
 			get = getOption,
@@ -1108,8 +1389,8 @@ function SoundAlerter:OnOptionsCreate()
 			selfDebuffs = {
 				type = 'group',
 				--inline = true,
-				name = "Self Debuffs",
-				desc = "Alerts you when you get afflicted by one of these spells when you aren't targeting the enemy.",
+				name = "CC on You",
+				desc = "Alert when you get crowd controlled by enemies. Know immediately when to trinket or call for help from teammates.",
 				disabled = function() return sadb.dSelfDebuff end,
 				set = setOption,
 				get = getOption,
@@ -1119,11 +1400,14 @@ function SoundAlerter:OnOptionsCreate()
 		},
 	})
 	-- Find Spell Tab
+	-- ===========================
+	-- DEVELOPER TOOLS TAB (SLC: Complete)
+	-- ===========================
 	self:AddOption('FindSpell', {
 		type = 'group',
-		name = "Find Spell",
-		desc = "Search for spell IDs and information",
-		order = 2.5,
+		name = "Developer Tools",
+		desc = "Advanced tools for addon developers and power users. Find spell IDs, rebuild database, and access debug features.",
+		order = 5,
 		args = {
 			description = {
 				type = 'description',
@@ -1229,11 +1513,14 @@ function SoundAlerter:OnOptionsCreate()
 			},
 		}
 	})
+	-- ===========================
+	-- ADVANCED TAB (SLC: Complete)
+	-- ===========================
 	self:AddOption('custom', {
 		type = 'group',
-		name = L["Custom Alerts"],
-		desc = L["Create a custom sound or chat alert with text or a sound file"],
-		order = 3,
+		name = "Advanced",
+		desc = "Advanced customization: create custom alerts, configure event filters, and fine-tune addon behavior for power users.",
+		order = 4,
 		args = {
 			newalert = {
 				type = 'execute',

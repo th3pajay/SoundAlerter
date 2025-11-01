@@ -6,6 +6,14 @@ dbDefaults = {
 		sapath = SA_LOCALEPATH[GetLocale()] or "Interface\\Addons\\SoundAlerter\\voice\\",
 		debugmode = false,
 		spelldebug = false,
+		ignorePVEMode = true,
+
+		-- ===========================
+		-- SLC UI Settings
+		-- ===========================
+		quickStartEnabled = false,
+		showDeveloperTools = false,
+		objectiveAlertsEnabled = false,
 
 		-- ===========================
 		-- Zone Settings
@@ -135,5 +143,16 @@ dbDefaults = {
 		-- ===========================
 		custom = {},
 		cspell = "",
+
+		-- ===========================
+		-- Proximity Alert Settings
+		-- ===========================
+		proximityEnabled = false,
+		proximityWorld = false,
+		proximityBattleground = false,
+		proximityArena = false,
+		proximityCooldown = 60,
+		proximityChat = false,
+		proximityChatText = "[#class#] #player# detected nearby!",
 	}
 }

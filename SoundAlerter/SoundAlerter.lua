@@ -215,17 +215,28 @@ function SoundAlerter:OnEnable()
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
     self:RegisterEvent("UNIT_AURA")
-    
+    self:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+
     if not self.SA_LANGUAGE[sadb.path] then sadb.path = self.SA_LOCALEPATH[GetLocale()] end
     self.throttled = {}
     self.smarter = 0
-    
+    self.pveModePlayers = {}
+
+    -- Proximity alert caches
+    self.proximityAlertCache = {}
+    self.proximityRecentGUIDs = {}
+    self.guidToClassCache = {}
+    self.enterWorldTime = 0
+
+    self:ScheduleRepeatingTimer("CleanupProximityCaches", 30)
+
     GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
         local name, server = tip:GetUnit()
         local Realm = GetRealmName()
-        if (SA_sponsors and SA_sponsors[name]) then 
+        if (SA_sponsors and SA_sponsors[name]) then
             if (SA_sponsors[name]["Realm"] == Realm) then
-                tip:AddLine(SA_sponsors[SA_sponsors[name].Type], 1, 0, 0) 
+                tip:AddLine(SA_sponsors[SA_sponsors[name].Type], 1, 0, 0)
             end
         end
     end)
@@ -282,8 +293,71 @@ function SoundAlerter:ArenaClass(id)
     end
 end
 
+function SoundAlerter:IsInPVEMode(guid)
+    local currentZoneType, pvpType = IsInInstance()
+    if currentZoneType == "pvp" or currentZoneType == "arena" or pvpType == "arena" then
+        return false
+    end
+
+    if self.pveModePlayers[guid] then
+        return true
+    end
+
+    local unit = nil
+    if UnitExists("target") and UnitGUID("target") == guid then unit = "target"
+    elseif UnitExists("focus") and UnitGUID("focus") == guid then unit = "focus"
+    elseif UnitExists("mouseover") and UnitGUID("mouseover") == guid then unit = "mouseover"
+    end
+
+    if unit then
+        for i = 1, 40 do
+            local name, _, _, _, _, _, _, _, _, _, spellId = UnitAura(unit, i)
+            if not name then break end
+            if spellId == 9931032 then
+                self.pveModePlayers[guid] = true
+                if sadb.debugmode then
+                    self:Print("PVE Mode detected on " .. UnitName(unit) .. " via UnitAura scan")
+                end
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function SoundAlerter:PLAYER_ENTERING_WORLD()
     CombatLogClearEntries()
+    self.enterWorldTime = GetTime()
+    self.pveModePlayers = {}
+end
+
+function SoundAlerter:CleanupProximityCaches()
+    local currentTime = GetTime()
+    local cooldown = sadb.proximityCooldown or 30
+
+    -- Remove expired alerts
+    for guid, timestamp in pairs(self.proximityAlertCache) do
+        if currentTime - timestamp > cooldown then
+            self.proximityAlertCache[guid] = nil
+            self.guidToClassCache[guid] = nil
+        end
+    end
+
+    -- Clear recent GUID spam filter
+    for guid in pairs(self.proximityRecentGUIDs) do
+        self.proximityRecentGUIDs[guid] = nil
+    end
+
+    if sadb.debugmode then
+        local cacheSize = 0
+        for _ in pairs(self.proximityAlertCache) do
+            cacheSize = cacheSize + 1
+        end
+        if cacheSize > 0 then
+            self:Print("Proximity cache cleanup: " .. cacheSize .. " active alerts")
+        end
+    end
 end
 
 function SoundAlerter:HandleAuraApplied(sourceGUID, sourceName, destGUID, destName, spellID)
@@ -477,15 +551,55 @@ function SoundAlerter:HandleCastStart(sourceGUID, sourceName, spellID)
 end
 
 function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
+    local timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, _, extraSpellID = select(1, ...);
+
+    local HOSTILE_PLAYERS_FILTER = COMBATLOG_FILTER_HOSTILE_PLAYERS
     local _, currentZoneType = IsInInstance()
-    local pvpType, isFFA, faction = GetZonePVPInfo();
-    
+    local pvpType = GetZonePVPInfo()
+
+    if spellID == 9931032 and currentZoneType ~= "pvp" and currentZoneType ~= "arena" and pvpType ~= "arena" then
+        if event == "SPELL_AURA_APPLIED" then
+            self.pveModePlayers[destGUID] = true
+            if sadb.debugmode then
+                self:Print((destName or "Unknown") .. " entered PVE Mode via combat log")
+            end
+        elseif event == "SPELL_AURA_REMOVED" then
+            self.pveModePlayers[destGUID] = nil
+            if sadb.debugmode then
+                self:Print((destName or "Unknown") .. " left PVE Mode via combat log")
+            end
+        end
+    end
+
+    if sadb.proximityEnabled and sourceGUID and sourceName and CombatLog_Object_IsA(sourceFlags, HOSTILE_PLAYERS_FILTER) then
+        if not (sadb.ignorePVEMode and self:IsInPVEMode(sourceGUID)) then
+            self:CheckProximityAlertFromCombatLog(sourceGUID, sourceName, sourceFlags)
+        end
+    end
+
+    local isFFA, faction = GetZonePVPInfo();
+
     if (not ((pvpType == "contested" and sadb.field) or (pvpType == "hostile" and sadb.field) or (pvpType == "friendly" and sadb.field) or (currentZoneType == "pvp" and sadb.battleground) or (((currentZoneType == "arena") or (pvpType == "arena")) and sadb.arena) or sadb.all)) then
         return
     end
-    
-    local timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, _, extraSpellID = select(1, ...);
-    
+
+    if sadb.ignorePVEMode and currentZoneType ~= "pvp" and currentZoneType ~= "arena" and pvpType ~= "arena" then
+        if sourceGUID and self:IsInPVEMode(sourceGUID) then
+            if sadb.debugmode then
+                self:Print("Ignoring event from " .. (sourceName or "unknown") .. " - PVE Mode")
+            end
+            return
+        end
+
+        if destGUID and self:IsInPVEMode(destGUID) then
+            if sadb.debugmode then
+                self:Print("Ignoring event on " .. (destName or "unknown") .. " - PVE Mode")
+            end
+            return
+        end
+    end
+
+    -- Parse all combat flags for spell alert logic
     for k in pairs(self.SA_TYPE) do
         desttype[k] = CombatLog_Object_IsA(destFlags, k)
         sourcetype[k] = CombatLog_Object_IsA(sourceFlags, k)
@@ -493,7 +607,7 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
 
     for k in pairs(self.SA_UNIT) do
         destuid[k], sourceuid[k] = nil, nil
-        if k == "party" and UnitName("party1") ~= nil then 
+        if k == "party" and UnitName("party1") ~= nil then
             for i = 1, MAX_PARTY_MEMBERS do
                 if destGUID == UnitGUID(k..i) then destuid[k] = true; end
                 if sourceGUID == UnitGUID(k..i) then sourceuid[k] = true; end
@@ -518,7 +632,7 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
     if sadb.debugmode and spellName == sadb.csname and spellName then
         print("Custom spell name: "..spellName, spellID, event, sourceName, destName)
     end
-    
+
     if desttype[COMBATLOG_FILTER_HOSTILE_PLAYERS] and event == "SPELL_CREATE" and (spellID == 13809 or spellID == 13810 or spellID == 1499) and ((sadb.myself and (destuid.target or destuid.focus)) or sadb.enemyinrange) then
         self:PlaySpell(self.spellList.castSuccess, spellID)
     end
@@ -581,4 +695,241 @@ function SoundAlerter:UNIT_AURA(event, uid)
             PlaySoundFile(sadb.sapath.."drinking.mp3");
         end
     end
+end
+
+-- ========================================
+-- PROXIMITY ALERT SYSTEM
+-- ========================================
+
+-- Class name mapping for audio files (lowercase to match file names)
+local CLASS_AUDIO_MAP = {
+    ["WARRIOR"] = "Warrior",
+    ["MAGE"] = "Mage",
+    ["PRIEST"] = "Priest",
+    ["ROGUE"] = "Rogue",
+    ["HUNTER"] = "Hunter",
+    ["DRUID"] = "druid",
+    ["PALADIN"] = "Paladin",
+    ["WARLOCK"] = "Warlock",
+    ["SHAMAN"] = "Shaman",
+    ["DEATHKNIGHT"] = "Deathknight"
+}
+
+function SoundAlerter:GetClassFromGUID(guid, currentZoneType, pvpType)
+    local cachedClass = rawget(self.guidToClassCache, guid)
+    if cachedClass then
+        return cachedClass
+    end
+
+    local unitClass = nil
+
+    -- Check common units first
+    if UnitExists("target") and UnitGUID("target") == guid then
+        _, unitClass = UnitClass("target")
+    elseif UnitExists("mouseover") and UnitGUID("mouseover") == guid then
+        _, unitClass = UnitClass("mouseover")
+    elseif UnitExists("focus") and UnitGUID("focus") == guid then
+        _, unitClass = UnitClass("focus")
+    else
+        -- Arena units
+        if currentZoneType == "arena" or pvpType == "arena" then
+            for i = 1, 5 do
+                local arenaUnit = "arena" .. i
+                if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == guid then
+                    _, unitClass = UnitClass(arenaUnit)
+                    break
+                end
+            end
+        end
+
+        -- Battleground raid targets
+        if not unitClass and currentZoneType == "pvp" then
+            local numRaidMembers = GetNumRaidMembers()
+            if numRaidMembers > 0 then
+                for i = 1, numRaidMembers do
+                    local bgUnit = "raid" .. i .. "target"
+                    if UnitExists(bgUnit) and UnitGUID(bgUnit) == guid then
+                        _, unitClass = UnitClass(bgUnit)
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if unitClass then
+        self.guidToClassCache[guid] = unitClass
+    end
+
+    return unitClass
+end
+
+function SoundAlerter:CheckProximityAlert(unit)
+    if not sadb.proximityEnabled then return end
+
+    -- Fast validation checks
+    if not UnitExists(unit) then return end
+    if not UnitIsPlayer(unit) then return end
+    if not UnitIsEnemy("player", unit) then return end
+    if not UnitIsVisible(unit) then return end
+
+    local guid = UnitGUID(unit)
+    if not guid then return end
+
+    if sadb.ignorePVEMode and self:IsInPVEMode(guid) then
+        if sadb.debugmode then
+            self:Print("Proximity: Skipping " .. UnitName(unit) .. " - PVE Mode")
+        end
+        return
+    end
+
+    -- Cooldown check
+    local currentTime = GetTime()
+    local cooldown = sadb.proximityCooldown or 30
+    if self.proximityAlertCache[guid] then
+        local timeElapsed = currentTime - self.proximityAlertCache[guid]
+        if timeElapsed < cooldown then return end
+    end
+
+    if currentTime - self.enterWorldTime < 10 then return end
+
+    -- Zone checks
+    local currentZoneType, pvpType = IsInInstance()
+    local zonePvpType = GetZonePVPInfo()
+
+    local inArena = (currentZoneType == "arena") or (pvpType == "arena")
+    local inBattleground = (currentZoneType == "pvp")
+    local inWorld = (zonePvpType == "contested" or zonePvpType == "hostile" or zonePvpType == "friendly")
+
+    if inArena and not sadb.proximityArena then return end
+    if inBattleground and not sadb.proximityBattleground then return end
+    if inWorld and not sadb.proximityWorld then return end
+    if not (inArena or inBattleground or inWorld) then return end
+
+    local unitName = UnitName(unit)
+    local _, unitClass = UnitClass(unit)
+
+    if not unitName or not unitClass then return end
+
+    self.guidToClassCache[guid] = unitClass
+    self.proximityAlertCache[guid] = currentTime
+
+    local classAudioFile = CLASS_AUDIO_MAP[unitClass]
+    if classAudioFile then
+        PlaySoundFile(sadb.sapath .. classAudioFile .. ".mp3", "Master")
+        self:ScheduleTimer(function()
+            PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
+        end, 0.8)
+    end
+
+    -- Chat alert
+    if sadb.proximityChat and sadb.proximityChatText then
+        local chatText = gsub(sadb.proximityChatText, "#class#", unitClass)
+        chatText = gsub(chatText, "#player#", unitName)
+
+        if not sadb.chatgroups.NONE then
+            for channel, enabled in pairs(sadb.chatgroups) do
+                if enabled and channel ~= "NONE" then
+                    SendChatMessage(chatText, channel, nil, nil)
+                end
+            end
+        end
+    end
+
+    if sadb.debugmode then
+        self:Print("Proximity Alert: " .. unitClass .. " " .. unitName .. " detected!")
+    end
+end
+
+function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
+    if rawget(self.proximityRecentGUIDs, guid) then return end
+    if not sadb.proximityEnabled then return end
+    if not guid or not name then return end
+
+    if sadb.ignorePVEMode and self:IsInPVEMode(guid) then
+        if sadb.debugmode then
+            self:Print("Proximity (CombatLog): Skipping " .. name .. " - PVE Mode")
+        end
+        return
+    end
+
+    -- Cooldown check
+    local currentTime = GetTime()
+    local cooldown = sadb.proximityCooldown or 30
+    local cachedTime = rawget(self.proximityAlertCache, guid)
+    if cachedTime then
+        if currentTime - cachedTime < cooldown then
+            self.proximityRecentGUIDs[guid] = true
+            return
+        end
+    end
+
+    -- Graceful startup (skip alerts first 10 seconds after loading)
+    if currentTime - self.enterWorldTime < 10 then return end
+
+    -- Zone checks (expensive API calls after all cache checks)
+    local currentZoneType, pvpType = IsInInstance()
+    local zonePvpType = GetZonePVPInfo()
+
+    local zoneAllowed = (
+        ((currentZoneType == "arena" or pvpType == "arena") and sadb.proximityArena) or
+        (currentZoneType == "pvp" and sadb.proximityBattleground) or
+        ((zonePvpType == "contested" or zonePvpType == "hostile" or zonePvpType == "friendly") and sadb.proximityWorld)
+    )
+    if not zoneAllowed then return end
+
+    local unitClass = self:GetClassFromGUID(guid, currentZoneType, pvpType)
+
+    -- Add to caches
+    self.proximityAlertCache[guid] = currentTime
+    self.proximityRecentGUIDs[guid] = true
+
+    if unitClass then
+        local classAudioFile = CLASS_AUDIO_MAP[unitClass]
+        if classAudioFile then
+            PlaySoundFile(sadb.sapath .. classAudioFile .. ".mp3", "Master")
+            self:ScheduleTimer(function()
+                PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
+            end, 0.8)
+        else
+            PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
+        end
+    else
+        PlaySoundFile(sadb.sapath .. "enemy.mp3", "Master")
+        self:ScheduleTimer(function()
+            PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
+        end, 0.8)
+    end
+
+    -- Chat alert
+    if sadb.proximityChat and sadb.proximityChatText then
+        local chatText = gsub(sadb.proximityChatText, "#class#", unitClass or "Enemy")
+        chatText = gsub(chatText, "#player#", name)
+
+        if not sadb.chatgroups.NONE then
+            for channel, enabled in pairs(sadb.chatgroups) do
+                if enabled and channel ~= "NONE" then
+                    SendChatMessage(chatText, channel, nil, nil)
+                end
+            end
+        end
+    end
+
+    if sadb.debugmode then
+        if unitClass then
+            self:Print("Proximity Alert (Combat Log): " .. unitClass .. " " .. name .. " detected!")
+        else
+            self:Print("Proximity Alert (Combat Log): Enemy " .. name .. " detected!")
+        end
+    end
+end
+
+-- Event handler for target changes
+function SoundAlerter:PLAYER_TARGET_CHANGED()
+    self:CheckProximityAlert("target")
+end
+
+-- Event handler for mouseover changes
+function SoundAlerter:UPDATE_MOUSEOVER_UNIT()
+    self:CheckProximityAlert("mouseover")
 end
