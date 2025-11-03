@@ -69,6 +69,11 @@ function SoundAlerter:ChangeProfile()
 			v:ChangeProfile()
 		end
 	end
+
+	-- Reinitialize toast system with new profile settings
+	if self.ProximityToasts then
+		self.ProximityToasts:OnProfileChanged()
+	end
 end
 
 function SoundAlerter:AddOption(key, table)
@@ -178,9 +183,9 @@ function SoundAlerter:OnInitialize()
     self.db1.RegisterCallback(self, "OnProfileCopied", "ChangeProfile")
     self.db1.RegisterCallback(self, "OnProfileReset", "ChangeProfile")
     
-    self:RegisterChatCommand("SoundAlerter", "ShowConfig")
-    self:RegisterChatCommand("SALERTER", "ShowConfig")
-    self:RegisterChatCommand("sa", "ShowConfig")
+    self:RegisterChatCommand("SoundAlerter", "HandleCommand")
+    self:RegisterChatCommand("SALERTER", "HandleCommand")
+    self:RegisterChatCommand("sa", "HandleCommand")
 
     SoundAlerter.options = {
         name = "SoundAlerter",
@@ -217,6 +222,7 @@ function SoundAlerter:OnEnable()
     self:RegisterEvent("UNIT_AURA")
     self:RegisterEvent("PLAYER_TARGET_CHANGED")
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+    self:RegisterEvent("PLAYER_LOGOUT")
 
     if not self.SA_LANGUAGE[sadb.path] then sadb.path = self.SA_LOCALEPATH[GetLocale()] end
     self.throttled = {}
@@ -229,7 +235,32 @@ function SoundAlerter:OnEnable()
     self.guidToClassCache = {}
     self.enterWorldTime = 0
 
+    -- Phase 1: Negative lookup cache (all zones)
+    self.failedGUIDLookups = {}  -- GUID → timestamp
+
+    -- Phase 0: Performance metrics (MUST be initialized BEFORE InitializeLearnedClassesCache)
+    self.classDetectionStats = {
+        totalDetections = 0,
+        cacheHits = 0,
+        learnedCacheHits = 0,
+        negativeCacheHits = 0,
+        unitLookups = 0,
+        apiLookups = 0,
+        failedLookups = 0,
+        totalLookupTime = 0,
+        learnedClassCount = 0,
+    }
+
+    -- Phase 3: Persistent learned cache (all zones)
+    self:InitializeLearnedClassesCache()
+
+    -- Initialize proximity toast system
+    if self.ProximityToasts then
+        self.ProximityToasts:Initialize()
+    end
+
     self:ScheduleRepeatingTimer("CleanupProximityCaches", 30)
+    self:ScheduleRepeatingTimer("SaveLearnedClasses", 60)
 
     GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
         local name, server = tip:GetUnit()
@@ -332,6 +363,73 @@ function SoundAlerter:PLAYER_ENTERING_WORLD()
     self.pveModePlayers = {}
 end
 
+-- Phase 3: Save learned classes on logout
+function SoundAlerter:PLAYER_LOGOUT()
+    self:SaveLearnedClasses()
+    if sadb.debugmode then
+        self:Print("Saved learned classes on logout")
+    end
+end
+
+-- Phase 0: Command handler
+function SoundAlerter:HandleCommand(input)
+    local args = {}
+    for word in string.gmatch(input, "%S+") do
+        table.insert(args, string.lower(word))
+    end
+
+    local command = args[1]
+
+    if command == "stats" or command == "perf" then
+        self:ShowPerformanceStats()
+    else
+        self:ShowConfig()
+    end
+end
+
+-- Phase 0: Display performance statistics
+function SoundAlerter:ShowPerformanceStats()
+    local stats = self.classDetectionStats
+
+    self:Print("=== |cffFF7D0AClass Detection Performance Stats|r ===")
+
+    -- Total detections
+    self:Print("Total detections: |cff00FF00" .. stats.totalDetections .. "|r")
+
+    if stats.totalDetections > 0 then
+        -- Cache hit rates
+        local cacheHitRate = (stats.cacheHits / stats.totalDetections) * 100
+        local learnedHitRate = (stats.learnedCacheHits / stats.totalDetections) * 100
+        local negativeHitRate = (stats.negativeCacheHits / stats.totalDetections) * 100
+        local totalHitRate = ((stats.cacheHits + stats.learnedCacheHits + stats.negativeCacheHits) / stats.totalDetections) * 100
+
+        self:Print("Cache hits: |cff00FF00" .. stats.cacheHits .. "|r (" .. string.format("%.1f%%", cacheHitRate) .. ")")
+        self:Print("Learned cache hits: |cff00FF00" .. stats.learnedCacheHits .. "|r (" .. string.format("%.1f%%", learnedHitRate) .. ")")
+        self:Print("Negative cache hits: |cffFFFF00" .. stats.negativeCacheHits .. "|r (" .. string.format("%.1f%%", negativeHitRate) .. ")")
+        self:Print("Total fast-path: |cff00FF00" .. string.format("%.1f%%", totalHitRate) .. "|r")
+
+        -- Lookup methods
+        self:Print("Unit lookups: |cff00FFFF" .. stats.unitLookups .. "|r")
+        self:Print("API lookups (GetPlayerInfoByGUID): |cff00FFFF" .. stats.apiLookups .. "|r")
+        self:Print("Failed lookups: |cffFF0000" .. stats.failedLookups .. "|r")
+
+        -- Average lookup time
+        local avgTime = (stats.totalLookupTime / stats.totalDetections) * 1000  -- Convert to milliseconds
+        self:Print("Avg lookup time: |cffFFFF00" .. string.format("%.2f", avgTime) .. "ms|r")
+    end
+
+    -- Learned classes count
+    self:Print("Learned classes: |cff00FF00" .. stats.learnedClassCount .. "|r")
+
+    -- Settings status
+    local learnedStatus = sadb.learnedClassesEnabled and "|cff00FF00Enabled|r" or "|cffFF0000Disabled|r"
+    local negativeStatus = sadb.negativeCacheEnabled and "|cff00FF00Enabled|r" or "|cffFF0000Disabled|r"
+    self:Print("Persistent cache: " .. learnedStatus)
+    self:Print("Negative cache: " .. negativeStatus)
+
+    self:Print("Use |cffFFFF00/sa stats|r to refresh")
+end
+
 function SoundAlerter:CleanupProximityCaches()
     local currentTime = GetTime()
     local cooldown = sadb.proximityCooldown or 30
@@ -340,13 +438,23 @@ function SoundAlerter:CleanupProximityCaches()
     for guid, timestamp in pairs(self.proximityAlertCache) do
         if currentTime - timestamp > cooldown then
             self.proximityAlertCache[guid] = nil
-            self.guidToClassCache[guid] = nil
+            -- Don't clear guidToClassCache anymore - keep learned data
         end
     end
 
     -- Clear recent GUID spam filter
     for guid in pairs(self.proximityRecentGUIDs) do
         self.proximityRecentGUIDs[guid] = nil
+    end
+
+    -- Phase 1: Clean up negative lookup cache
+    if sadb.negativeCacheEnabled then
+        local negativeTTL = sadb.negativeCacheTTL or 5
+        for guid, timestamp in pairs(self.failedGUIDLookups) do
+            if currentTime - timestamp > negativeTTL then
+                self.failedGUIDLookups[guid] = nil
+            end
+        end
     end
 
     if sadb.debugmode then
@@ -357,6 +465,83 @@ function SoundAlerter:CleanupProximityCaches()
         if cacheSize > 0 then
             self:Print("Proximity cache cleanup: " .. cacheSize .. " active alerts")
         end
+    end
+end
+
+-- Phase 3: Initialize persistent learned classes cache
+function SoundAlerter:InitializeLearnedClassesCache()
+    if not sadb.learnedClassesEnabled then
+        self.learnedClasses = {}
+        return
+    end
+
+    -- Validate and load from SavedVariables
+    if not sadb.learnedClasses or type(sadb.learnedClasses) ~= "table" then
+        sadb.learnedClasses = {}
+    end
+
+    self.learnedClasses = sadb.learnedClasses
+    self.learnedClassesDirty = false
+
+    -- Count entries
+    local count = 0
+    for _ in pairs(self.learnedClasses) do
+        count = count + 1
+    end
+
+    -- Enforce size limit
+    local maxSize = sadb.learnedClassesMaxSize or 5000
+    if count > maxSize then
+        if sadb.debugmode then
+            self:Print("Learned classes cache too large (" .. count .. "), limiting to " .. maxSize)
+        end
+        self:LimitLearnedClassesCache(maxSize)
+        count = maxSize
+    end
+
+    self.classDetectionStats.learnedClassCount = count
+
+    if sadb.debugmode then
+        self:Print("Loaded " .. count .. " learned player classes from cache")
+    end
+end
+
+-- Phase 3: Limit cache size by removing oldest entries
+function SoundAlerter:LimitLearnedClassesCache(maxSize)
+    local entries = {}
+    for guid, class in pairs(self.learnedClasses) do
+        table.insert(entries, guid)
+    end
+
+    -- Keep newest entries (simple random eviction for now)
+    if #entries > maxSize then
+        local toRemove = #entries - maxSize
+        for i = 1, toRemove do
+            self.learnedClasses[entries[i]] = nil
+        end
+    end
+
+    sadb.learnedClasses = self.learnedClasses
+    self.learnedClassesDirty = false
+end
+
+-- Phase 3: Save learned classes (called every 60 seconds)
+function SoundAlerter:SaveLearnedClasses()
+    if not sadb.learnedClassesEnabled then return end
+    if not self.learnedClassesDirty then return end
+
+    sadb.learnedClasses = self.learnedClasses
+    self.learnedClassesDirty = false
+
+    -- Update count
+    local count = 0
+    for _ in pairs(self.learnedClasses) do
+        count = count + 1
+    end
+    self.classDetectionStats.learnedClassCount = count
+
+    if sadb.debugmode then
+        self:Print("Saved " .. count .. " learned classes to cache")
     end
 end
 
@@ -716,9 +901,46 @@ local CLASS_AUDIO_MAP = {
 }
 
 function SoundAlerter:GetClassFromGUID(guid, currentZoneType, pvpType)
+    local startTime = GetTime()
+
+    -- Phase 0: Track total detections (safety check)
+    if self.classDetectionStats then
+        self.classDetectionStats.totalDetections = self.classDetectionStats.totalDetections + 1
+    end
+
+    -- 1. Check memory cache (session)
     local cachedClass = rawget(self.guidToClassCache, guid)
     if cachedClass then
+        if self.classDetectionStats then
+            self.classDetectionStats.cacheHits = self.classDetectionStats.cacheHits + 1
+            self.classDetectionStats.totalLookupTime = self.classDetectionStats.totalLookupTime + (GetTime() - startTime)
+        end
         return cachedClass
+    end
+
+    -- Phase 3: Check persistent learned cache (ALL zones)
+    if sadb.learnedClassesEnabled and self.learnedClasses and self.learnedClasses[guid] then
+        local learnedClass = self.learnedClasses[guid]
+        self.guidToClassCache[guid] = learnedClass  -- Warm up L1 cache
+        if self.classDetectionStats then
+            self.classDetectionStats.learnedCacheHits = self.classDetectionStats.learnedCacheHits + 1
+            self.classDetectionStats.totalLookupTime = self.classDetectionStats.totalLookupTime + (GetTime() - startTime)
+        end
+        return learnedClass
+    end
+
+    -- Phase 1: Check negative lookup cache (ALL zones)
+    if sadb.negativeCacheEnabled and self.failedGUIDLookups and self.failedGUIDLookups[guid] then
+        local failTime = self.failedGUIDLookups[guid]
+        local negativeTTL = sadb.negativeCacheTTL or 5
+        if GetTime() - failTime < negativeTTL then
+            -- Skip expensive scan
+            if self.classDetectionStats then
+                self.classDetectionStats.negativeCacheHits = self.classDetectionStats.negativeCacheHits + 1
+                self.classDetectionStats.totalLookupTime = self.classDetectionStats.totalLookupTime + (GetTime() - startTime)
+            end
+            return nil
+        end
     end
 
     local unitClass = nil
@@ -742,7 +964,7 @@ function SoundAlerter:GetClassFromGUID(guid, currentZoneType, pvpType)
             end
         end
 
-        -- Battleground raid targets
+        -- Battleground raid targets (MAJOR BOTTLENECK - learned cache helps most here!)
         if not unitClass and currentZoneType == "pvp" then
             local numRaidMembers = GetNumRaidMembers()
             if numRaidMembers > 0 then
@@ -757,10 +979,42 @@ function SoundAlerter:GetClassFromGUID(guid, currentZoneType, pvpType)
         end
     end
 
-    if unitClass then
-        self.guidToClassCache[guid] = unitClass
+    -- Phase 3: Try GetPlayerInfoByGUID (ALL zones)
+    if not unitClass then
+        local _, apiClass = GetPlayerInfoByGUID(guid)
+        if apiClass then
+            unitClass = apiClass
+            if self.classDetectionStats then
+                self.classDetectionStats.apiLookups = self.classDetectionStats.apiLookups + 1
+            end
+        end
     end
 
+    if unitClass then
+        -- Cache the result
+        self.guidToClassCache[guid] = unitClass
+        if self.classDetectionStats then
+            self.classDetectionStats.unitLookups = self.classDetectionStats.unitLookups + 1
+        end
+
+        -- Phase 3: Persist to learned cache (ALL zones)
+        if sadb.learnedClassesEnabled and self.learnedClasses then
+            self.learnedClasses[guid] = unitClass
+            self.learnedClassesDirty = true
+        end
+    else
+        -- Phase 1: Mark as failed lookup (ALL zones)
+        if sadb.negativeCacheEnabled and self.failedGUIDLookups then
+            self.failedGUIDLookups[guid] = GetTime()
+        end
+        if self.classDetectionStats then
+            self.classDetectionStats.failedLookups = self.classDetectionStats.failedLookups + 1
+        end
+    end
+
+    if self.classDetectionStats then
+        self.classDetectionStats.totalLookupTime = self.classDetectionStats.totalLookupTime + (GetTime() - startTime)
+    end
     return unitClass
 end
 
@@ -808,6 +1062,7 @@ function SoundAlerter:CheckProximityAlert(unit)
 
     local unitName = UnitName(unit)
     local _, unitClass = UnitClass(unit)
+    local unitLevel = UnitLevel(unit)
 
     if not unitName or not unitClass then return end
 
@@ -820,6 +1075,11 @@ function SoundAlerter:CheckProximityAlert(unit)
         self:ScheduleTimer(function()
             PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
         end, 0.8)
+    end
+
+    -- Visual toast alert
+    if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
+        self.ProximityToasts:ShowToast(unitName, unitClass, nil, guid, unitLevel)
     end
 
     -- Chat alert
@@ -899,6 +1159,11 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
         self:ScheduleTimer(function()
             PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
         end, 0.8)
+    end
+
+    -- Visual toast alert
+    if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
+        self.ProximityToasts:ShowToast(name, unitClass, nil, guid, nil)
     end
 
     -- Chat alert

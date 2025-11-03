@@ -533,6 +533,168 @@ function SoundAlerter:OnOptionsCreate()
 					},
 				},
 			},
+			toastSettings = {
+				type = 'group',
+				inline = true,
+				name = "Visual Toast Notifications",
+				desc = "Show pop-up notifications for proximity alerts",
+				set = setOption,
+				get = getOption,
+				order = 5.5,
+				args = {
+					enabled = {
+						type = 'toggle',
+						name = "Enable Toast Notifications",
+						desc = "Show visual pop-up toasts when enemies are detected nearby",
+						disabled = function() return not sadb.proximityEnabled end,
+						width = "full",
+						order = 1,
+						set = function(info, value)
+							sadb.proximityToasts.enabled = value
+							if not value and SoundAlerter.ProximityToasts then
+								SoundAlerter.ProximityToasts:OnDisable()
+							end
+						end,
+						get = function(info)
+							return sadb.proximityToasts.enabled
+						end,
+					},
+					displayDuration = {
+						type = 'range',
+						name = "Display Duration (seconds)",
+						desc = "How long the toast remains visible on screen",
+						min = 2,
+						max = 8,
+						step = 0.5,
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 2,
+						set = function(info, value)
+							sadb.proximityToasts.displayDuration = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.displayDuration
+						end,
+					},
+					showDistance = {
+						type = 'toggle',
+						name = "Show Distance (when available)",
+						desc = "Display distance in yards (note: combat log alerts don't provide distance)",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 3,
+						set = function(info, value)
+							sadb.proximityToasts.showDistance = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.showDistance
+						end,
+					},
+					showPlayerName = {
+						type = 'toggle',
+						name = "Show Player Name",
+						desc = "Display enemy player name in toast",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 4,
+						set = function(info, value)
+							sadb.proximityToasts.showPlayerName = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.showPlayerName
+						end,
+					},
+					useClassColors = {
+						type = 'toggle',
+						name = "Use Class Colors",
+						desc = "Color toast background based on enemy class",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 5,
+						set = function(info, value)
+							sadb.proximityToasts.useClassColors = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.useClassColors
+						end,
+					},
+					maxConcurrent = {
+						type = 'range',
+						name = "Max Concurrent Toasts",
+						desc = "Maximum number of toasts to show at once (older toasts fade out early if limit is exceeded)",
+						min = 1,
+						max = 5,
+						step = 1,
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 6,
+						set = function(info, value)
+							sadb.proximityToasts.maxConcurrent = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.maxConcurrent
+						end,
+					},
+					positionHeader = {
+						type = 'header',
+						name = "Screen Position",
+						order = 7,
+					},
+					positionX = {
+						type = 'range',
+						name = "Horizontal Position",
+						desc = "Adjust horizontal position on screen (0 = center)",
+						min = -500,
+						max = 500,
+						step = 10,
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "normal",
+						order = 8,
+						set = function(info, value)
+							sadb.proximityToasts.positionX = value
+							if SoundAlerter.ProximityToasts then
+								SoundAlerter.ProximityToasts:UpdateLayout()
+							end
+						end,
+						get = function(info)
+							return sadb.proximityToasts.positionX
+						end,
+					},
+					positionY = {
+						type = 'range',
+						name = "Vertical Position",
+						desc = "Adjust vertical position on screen (negative = from top)",
+						min = -500,
+						max = 500,
+						step = 10,
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "normal",
+						order = 9,
+						set = function(info, value)
+							sadb.proximityToasts.positionY = value
+							if SoundAlerter.ProximityToasts then
+								SoundAlerter.ProximityToasts:UpdateLayout()
+							end
+						end,
+						get = function(info)
+							return sadb.proximityToasts.positionY
+						end,
+					},
+					testButton = {
+						type = 'execute',
+						name = "Test Toast",
+						desc = "Show a test toast notification to preview the current settings",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "normal",
+						order = 10,
+						func = function()
+							if SoundAlerter.ProximityToasts then
+								SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, nil)
+							end
+						end,
+					},
+				},
+			},
 			futureFeatures = {
 				type = 'group',
 				inline = true,

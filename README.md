@@ -1,69 +1,74 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
 
-**Instant voice alerts for critical PvP spells.** Never miss Cyclone, Divine Shield, or enemy cooldowns again.
+**Never miss Cyclone, Divine Shield, or enemy cooldowns again.** SoundAlerter provides real-time, high-priority audio and visual cues to give you the competitive edge in World of Warcraft PvP.
 
-## Features
+---
 
-- **Quick Start** - Get arena-ready in 60 seconds with guided setup
-- **Voice Alerts** - 450+ spells with intent-based organization (defensives, CC, cooldowns)
-- **Proximity Alerts** - Detect nearby enemies
-- **Spell Finder** - Search 12,000+ spells with IDs and tooltips
-- **Ascension Support** - Auto-detects retail and 11-prefixed spell IDs
-- **Multi-Channel Chat** - Alert teammates via party, raid, or battleground chat
-- **Minimap Button** - Quick access with draggable icon
-- **Dual Language** - English and Spanish voice packs
+## ✨ Key Features & Functionality
 
-## Installation
+### 🗣️ Combat & Alert System
+* **Voice Alerts:** Hear **450+ critical spell callouts**, logically organized by intent (defensives, Crowd Control (CC), interrupts, cooldowns).
+* **Proximity Alerts:** Receive **visual toasts** or **audible alerts** (with class-colored backgrounds) for nearby enemies (both PvE and PvP). Customize the detection threshold and output.
+* **Chat Integration:** **Auto-announce critical spells** (CC, interrupts, cooldowns) to your teammates via Party, Raid, or Battleground chat channels.
 
-1. Download the latest release
-2. Extract **SoundAlerter** folder to `.../Interface/AddOns/`
-3. Restart WoW or `/reload`
+### ⚙️ Usability & Customization
+* **Quick Start:** Get **arena-ready in 60 seconds** using the guided configuration process.
+* **Spell Finder:** Easily **search a database of 12,000+ spells**, complete with IDs and tooltips.
+* **Customization:** Full control with **per-spell toggles**, zone filters, and custom alert rules (via the **Advanced** tab).
+* **Minimap Button:** Quick access to settings with a convenient **draggable icon**.
 
-## Quick Setup
+### 🌍 Compatibility & Language
+* **Ascension Support:** Automatically detects retail and **11-prefixed spell IDs**.
+* **Dual Language:** Includes both **English and Spanish** voice packs.
 
-1. Type `/sa` in-game (or click minimap button)
-2. Follow **Quick Start** tab (zones, alert scope, audio)
-3. Enter arena/BG to hear voice alerts
+---
 
-## Advanced Usage
+## 🛠️ Getting Started
 
-**Customize Alerts:**
-- **Voice Alerts** tab - Toggle 450+ spells by class/intent
-- **Proximity Alerts** tab - Detect nearby enemies
-- **Advanced** tab - Create custom alerts
-- **Developer Tools** tab - Find spell IDs for new alerts
+### Installation
+1.  **Download** the latest release.
+2.  **Extract** the `SoundAlerter` folder to your WoW AddOns directory (`.../Interface/AddOns/`).
+3.  **Restart WoW** or use the `/reload` command in-game.
 
-**Chat Integration:**
-- Enable multi-channel output in Voice Alerts > Chat Alerts
-- Announce CC, interrupts, and cooldowns to teammates
+### Quick Setup
+1.  Type `/sa` in-game (or click the Minimap Button).
+2.  Follow the steps in the **Quick Start** tab (set zones, alert scope, and audio).
+3.  Enter an Arena or Battleground to immediately hear the voice alerts.
 
-## Performance
+---
 
-- **Database Build:** ~3.5 seconds (first login)
-- **Search Speed:** <1ms with indexing
-- **Memory Usage:** ~485 KB
-- **Subsequent Logins:** ~2 seconds (loads from cache)
+## 🚀 Advanced Usage
 
-## Development
+| Feature | Tab Location | Description |
+| :--- | :--- | :--- |
+| **Customize Voice Alerts** | **Voice Alerts** tab | Toggle and fine-tune the 450+ spell alerts by class and intent. |
+| **Proximity Tuning** | **Proximity Alerts** tab | Adjust the distance threshold and choose the output (voice or toast pop-ups) for nearby enemies. |
+| **Create Custom Alerts** | **Advanced** tab | Define your own rules for specific in-game events. |
+| **Chat Integration** | **Voice Alerts** tab > **Chat Alerts** | Enable multi-channel output to alert teammates of CC, interrupts, and cooldowns. |
+| **Find Spell IDs** | **Developer Tools** tab | Use this tool to quickly find spell IDs for creating new custom alerts. |
+| **Performance Stats** | **In-Game Command** | Use **`/sa stats`** to view **Class Detection Performance Stats**, including cache hits, lookup times, and learned classes for optimization/debugging. |
+---
 
-New features and enhancements are merged to `develop` branch first, then `main`.
+## 📈 Performance & Technical Details
 
-### Technical Details
-- **Optimized Spell Database** - String interning, multi-level indexing, LRU caching
-- **SavedVariables Persistence** - Database persists between sessions
-- **Non-blocking Scanning** - Background spell ID scanning (70,000 IDs in chunks)
-- **WoW API Integration** - Uses `GetSpellInfo()` and `GameTooltip` for spell data
+| Metric | Detail | Technical Feature |
+| :--- | :--- | :--- |
+| **Initial Load** | ~3.5 seconds (first login) | **Database Build** with String Interning & Multi-level Indexing. |
+| **Subsequent Load** | ~2 seconds | Loads quickly from **SavedVariables Persistence** and **LRU caching**. |
+| **Search Speed** | <1ms | Achieved through advanced indexing. |
+| **Memory Usage** | **~485 KB** | Extremely low memory footprint. |
+| **Spell Scanning** | Non-blocking (70,000 IDs in chunks) | **Non-blocking Scanning** prevents game freezes; uses `GetSpellInfo()` and `GameTooltip` for accurate data. |
+| **Development** | N/A | New features merged to `develop` branch first, then `main`. |
 
-## Credits
+## License
 
-| Role | Name |
-|------|------|
-| **Original Author** | Trolollolol |
-| **Current Maintainer** | th3pajay (October 2025) |
+MIT License - See source files for full details.
 
 Fair winds, fellow adventurers! 🌊
 *th3pajay / Starmistx - An old feral (https://warcraftmovies.com/pv.php?t=3&l=pajay)*

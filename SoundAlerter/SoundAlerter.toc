@@ -2,8 +2,11 @@
 ## Title: SoundAlerter
 ## Notes: Voice alerts and chat announcements for critical PvP spells (CC, interrupts, cooldowns).
 ## Author: Trolololol, Abatorlos of Spinebreaker, Duskashes, Superk, th3pajay
+## Version: 1.2.0
 ## SavedVariables: SoundAlerterDB, SoundAlerterSpellDB
-## Version: 1.0
+## X-License: MIT
+## X-Website: https://github.com/th3pajay/SoundAlerter
+## X-Category: PvP
 
 SoundAlerter.xml
 Locales\locales.xml
@@ -12,5 +15,6 @@ defaults.lua
 SoundAlerter.lua
 sponsors.lua
 spellist.lua
+proximitytoasts.lua
 spellfinder.lua
 options.lua
