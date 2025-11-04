@@ -159,14 +159,13 @@ dbDefaults = {
 		-- Proximity Toast Settings
 		-- ===========================
 		proximityToasts = {
-			enabled = false,  -- Default off (new feature, users opt-in)
-			displayDuration = 3.0,  -- 3 seconds visible
-			showDistance = true,
+			enabled = false,
+			displayDuration = 3.0,
 			showPlayerName = true,
 			useClassColors = true,
 			maxConcurrent = 3,
-			positionX = 0,  -- Center horizontal
-			positionY = -200,  -- Top-center
+			positionX = 0,
+			positionY = -200,
 		},
 
 		-- ===========================

@@ -244,14 +244,20 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level)
 
     toast.titleText:SetText(className and (className .. " NEARBY!") or "ENEMY NEARBY!")
 
-    toast.levelText:SetText(level and ("Level " .. level) or "")
+    -- Display level information, showing "High Level" for targets too high level to inspect
+    if level then
+        if level == -1 then
+            toast.levelText:SetText("High Level")
+        else
+            toast.levelText:SetText("Level " .. level)
+        end
+    else
+        toast.levelText:SetText("")
+    end
 
     local detailText = ""
     if sadb.proximityToasts.showPlayerName and unitName then
         detailText = unitName
-    end
-    if sadb.proximityToasts.showDistance and distance then
-        detailText = (detailText ~= "") and (detailText .. " - " .. distance .. " yards") or (distance .. " yards")
     end
     toast.detailText:SetText(detailText)
 
@@ -266,7 +272,7 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level)
     toast:SetScale(1.0)
     toast:Show()
 
-    toast:SetScript("OnUpdate", function(self, elapsed)
+    toast:SetScript("OnUpdate", function(self, frameDelta)
         local now = GetTime()
         local elapsed = now - self.startTime
 

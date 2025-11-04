@@ -414,8 +414,8 @@ function SoundAlerter:ShowPerformanceStats()
         self:Print("Failed lookups: |cffFF0000" .. stats.failedLookups .. "|r")
 
         -- Average lookup time
-        local avgTime = (stats.totalLookupTime / stats.totalDetections) * 1000  -- Convert to milliseconds
-        self:Print("Avg lookup time: |cffFFFF00" .. string.format("%.2f", avgTime) .. "ms|r")
+        local avgTime = (stats.totalLookupTime / stats.totalDetections) * 1000000  -- Convert to microseconds
+        self:Print("Avg lookup time: |cffFFFF00" .. string.format("%.2f", avgTime) .. "µs|r")
     end
 
     -- Learned classes count
@@ -438,7 +438,23 @@ function SoundAlerter:CleanupProximityCaches()
     for guid, timestamp in pairs(self.proximityAlertCache) do
         if currentTime - timestamp > cooldown then
             self.proximityAlertCache[guid] = nil
-            -- Don't clear guidToClassCache anymore - keep learned data
+        end
+    end
+
+    -- Cap guidToClassCache at 500 entries (prevent memory leak)
+    local cacheSize = 0
+    for _ in pairs(self.guidToClassCache) do
+        cacheSize = cacheSize + 1
+    end
+    if cacheSize > 500 then
+        local entriesToRemove = cacheSize - 500
+        local removed = 0
+        for guid in pairs(self.guidToClassCache) do
+            self.guidToClassCache[guid] = nil
+            removed = removed + 1
+            if removed >= entriesToRemove then
+                break
+            end
         end
     end
 
@@ -632,16 +648,24 @@ function SoundAlerter:HandleCastSuccess(sourceGUID, sourceName, destName, spellI
     
     if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] then
         if (not sadb.chatalerts) then
+            -- Check for Vanish (retail: 26889, Ascension: 1126889)
+            local isVanish = (spellID == 26889 or spellID == 1126889)
+            -- Check for Stealth (retail: 1784/1785, Ascension: 1101784/1101785)
+            local isStealth = (spellID == 1784 or spellID == 1785 or spellID == 1101784 or spellID == 1101785)
+            -- Check for Prowl (retail: 5215/6783/9913, Ascension: 1105215/1106783/1109913)
+            local isProwl = (spellID == 5215 or spellID == 6783 or spellID == 9913 or spellID == 1105215 or spellID == 1106783 or spellID == 1109913)
+
             if (
-                ((sadb.vanishenemy and spellID == 26889) or (sadb.stealthenemy and spellID == 1784) or (sadb.prowlenemy and spellID == 1105215)) 
-                and 
-                ( (sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and spellID == 26889) or (sadb.stealthTF and spellID == 1784) or (sadb.prowlTF and spellID == 1105215)) ) 
+                ((sadb.vanishenemy and isVanish) or (sadb.stealthenemy and isStealth) or (sadb.prowlenemy and isProwl))
+                and
+                ( (sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and isVanish) or (sadb.stealthTF and isStealth) or (sadb.prowlTF and isProwl)) )
             ) then
                 SendChatMessage(gsub(gsub(sadb.enemychat,"(#spell#)", GetSpellLink(spellID)),"(#enemy#)", sourceName),sadb.chatgroup,nil,nil)
             end
         end
         
-        if ((spellID == 42292 or spellID == 59752) and sadb.trinket) then
+        -- Trinket alerts: Check both retail and Ascension (11-prefixed) spell IDs
+        if ((spellID == 42292 or spellID == 59752 or spellID == 1142292 or spellID == 1159752) and sadb.trinket) then
             if ((currentZoneType == "arena" or pvpType == "arena") or (sourceuid.target or sourceuid.focus)) then
                 local c = self:ArenaClass(sourceGUID)
                 if (c and sadb.class) then
@@ -756,16 +780,16 @@ function SoundAlerter:COMBAT_LOG_EVENT_UNFILTERED(event , ...)
         end
     end
 
-    if sadb.proximityEnabled and sourceGUID and sourceName and CombatLog_Object_IsA(sourceFlags, HOSTILE_PLAYERS_FILTER) then
-        if not (sadb.ignorePVEMode and self:IsInPVEMode(sourceGUID)) then
-            self:CheckProximityAlertFromCombatLog(sourceGUID, sourceName, sourceFlags)
-        end
-    end
-
     local isFFA, faction = GetZonePVPInfo();
 
     if (not ((pvpType == "contested" and sadb.field) or (pvpType == "hostile" and sadb.field) or (pvpType == "friendly" and sadb.field) or (currentZoneType == "pvp" and sadb.battleground) or (((currentZoneType == "arena") or (pvpType == "arena")) and sadb.arena) or sadb.all)) then
         return
+    end
+
+    if sadb.proximityEnabled and sourceGUID and sourceName and CombatLog_Object_IsA(sourceFlags, HOSTILE_PLAYERS_FILTER) then
+        if not (sadb.ignorePVEMode and self:IsInPVEMode(sourceGUID)) then
+            self:CheckProximityAlertFromCombatLog(sourceGUID, sourceName, sourceFlags)
+        end
     end
 
     if sadb.ignorePVEMode and currentZoneType ~= "pvp" and currentZoneType ~= "arena" and pvpType ~= "arena" then
@@ -1021,7 +1045,6 @@ end
 function SoundAlerter:CheckProximityAlert(unit)
     if not sadb.proximityEnabled then return end
 
-    -- Fast validation checks
     if not UnitExists(unit) then return end
     if not UnitIsPlayer(unit) then return end
     if not UnitIsEnemy("player", unit) then return end
@@ -1029,6 +1052,9 @@ function SoundAlerter:CheckProximityAlert(unit)
 
     local guid = UnitGUID(unit)
     if not guid then return end
+
+    local guidType = tonumber(guid:sub(5, 5), 16)
+    if guidType == 3 or guidType == 4 or guidType == 6 then return end
 
     if sadb.ignorePVEMode and self:IsInPVEMode(guid) then
         if sadb.debugmode then
@@ -1077,7 +1103,6 @@ function SoundAlerter:CheckProximityAlert(unit)
         end, 0.8)
     end
 
-    -- Visual toast alert
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
         self.ProximityToasts:ShowToast(unitName, unitClass, nil, guid, unitLevel)
     end
@@ -1105,6 +1130,9 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
     if rawget(self.proximityRecentGUIDs, guid) then return end
     if not sadb.proximityEnabled then return end
     if not guid or not name then return end
+
+    local guidType = tonumber(guid:sub(5, 5), 16)
+    if guidType == 3 or guidType == 4 or guidType == 6 then return end
 
     if sadb.ignorePVEMode and self:IsInPVEMode(guid) then
         if sadb.debugmode then
@@ -1140,7 +1168,6 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
 
     local unitClass = self:GetClassFromGUID(guid, currentZoneType, pvpType)
 
-    -- Add to caches
     self.proximityAlertCache[guid] = currentTime
     self.proximityRecentGUIDs[guid] = true
 
@@ -1161,7 +1188,6 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
         end, 0.8)
     end
 
-    -- Visual toast alert
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
         self.ProximityToasts:ShowToast(name, unitClass, nil, guid, nil)
     end

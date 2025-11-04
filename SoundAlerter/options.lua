@@ -576,27 +576,13 @@ function SoundAlerter:OnOptionsCreate()
 							return sadb.proximityToasts.displayDuration
 						end,
 					},
-					showDistance = {
-						type = 'toggle',
-						name = "Show Distance (when available)",
-						desc = "Display distance in yards (note: combat log alerts don't provide distance)",
-						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
-						width = "full",
-						order = 3,
-						set = function(info, value)
-							sadb.proximityToasts.showDistance = value
-						end,
-						get = function(info)
-							return sadb.proximityToasts.showDistance
-						end,
-					},
 					showPlayerName = {
 						type = 'toggle',
 						name = "Show Player Name",
 						desc = "Display enemy player name in toast",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 4,
+						order = 3,
 						set = function(info, value)
 							sadb.proximityToasts.showPlayerName = value
 						end,
@@ -610,7 +596,7 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Color toast background based on enemy class",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 5,
+						order = 4,
 						set = function(info, value)
 							sadb.proximityToasts.useClassColors = value
 						end,
@@ -627,7 +613,7 @@ function SoundAlerter:OnOptionsCreate()
 						step = 1,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 6,
+						order = 5,
 						set = function(info, value)
 							sadb.proximityToasts.maxConcurrent = value
 						end,
@@ -638,7 +624,7 @@ function SoundAlerter:OnOptionsCreate()
 					positionHeader = {
 						type = 'header',
 						name = "Screen Position",
-						order = 7,
+						order = 6,
 					},
 					positionX = {
 						type = 'range',
@@ -649,7 +635,7 @@ function SoundAlerter:OnOptionsCreate()
 						step = 10,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "normal",
-						order = 8,
+						order = 7,
 						set = function(info, value)
 							sadb.proximityToasts.positionX = value
 							if SoundAlerter.ProximityToasts then
@@ -669,7 +655,7 @@ function SoundAlerter:OnOptionsCreate()
 						step = 10,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "normal",
-						order = 9,
+						order = 8,
 						set = function(info, value)
 							sadb.proximityToasts.positionY = value
 							if SoundAlerter.ProximityToasts then
@@ -686,7 +672,7 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Show a test toast notification to preview the current settings",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "normal",
-						order = 10,
+						order = 9,
 						func = function()
 							if SoundAlerter.ProximityToasts then
 								SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, nil)
@@ -811,7 +797,7 @@ function SoundAlerter:OnOptionsCreate()
 				args = {
 					class = {
 						type = 'toggle',
-						name = "Alert Class calling for trinketting in Arena",
+						name = "Alert Class calling for trinketing in Arena",
 						desc = "Alert when an enemy class trinkets in arena",
 						confirm = function() PlaySoundFile(sadb.sapath.."paladin.mp3"); self:ScheduleTimer("PlayTrinket", 0.4); end,
 						order = 2,
@@ -1139,7 +1125,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffC79C6EWarrior|r",
 						order = 9,
-						args = listOption({1102457,1102458,1100071,1180850,1100676,115246,1106552,1100072},"castSuccess"),
+						args = listOption({1102457,1102458,1100071,1180850,1100676,1165930,1106552,1100072},"castSuccess"),
 					},
 					warlock = {
 						type = 'group',
@@ -1557,7 +1543,7 @@ function SoundAlerter:OnOptionsCreate()
 				set = setOption,
 				get = getOption,
 				order = 10,
-				args = listOption({1133786,1151514,118,6215,1114309,1113809,115246,1117928,2094,1151724,1110308,1147860,115138,1144572,1120066,1134490,1119434,1147476,1151722,1149005,1119386,1106358},"selfDebuff"),
+				args = listOption({1133786,1151514,118,6215,1114309,1113809,1165930,1117928,2094,1151724,1110308,1147860,115138,1144572,1120066,1134490,1119434,1147476,1151722,1149005,1119386,1106358},"selfDebuff"),
 			},
 		},
 	})

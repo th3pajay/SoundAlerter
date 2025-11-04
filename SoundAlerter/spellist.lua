@@ -29,15 +29,15 @@ SoundAlerterSpells = {
         [1127009] = "naturesGrasp",	--Natures Grasp rank 7
         [1153312] = "naturesGrasp",	--Natures Grasp rank 8
         [1122842] = "frenziedRegeneration",
-        [1148505] = "starfall",	--starfall rank 1
-        [1153199] = "starfall",	--starfall rank 2
-        [1153200] = "starfall",	--starfall rank 3
-        [1153201] = "starfall",	--starfall rank 4
+        [1148505] = "starfall",	--Starfall rank 1
+        [1153199] = "starfall",	--Starfall rank 2
+        [1153200] = "starfall",	--Starfall rank 3
+        [1153201] = "starfall",	--Starfall rank 4
         [1150334] = "berserk",
 		[1169369] = "predatorystrikes",
-        [1101850] = "dash",	--dash rank 1
-        [119821] = "dash",	--dash rank 2
-        [1133357] = "dash",	--dash rank 3
+        [1101850] = "dash",	--Dash rank 1
+        [119821] = "dash",	--Dash rank 2
+        [1133357] = "dash",	--Dash rank 3
 		[1398191] = "ursolsvortex",
         --Paladin
         [1131821] = "auraMastery",
@@ -46,9 +46,9 @@ SoundAlerterSpells = {
         [1110278] = "handOfProtection",	--Hand of Protection rank 3
         [1101044] = "handOfFreedom",
         [11642] = "divineShield",
-        [1106940] = "handofsacrifice", --don't know
+        [1106940] = "handofsacrifice",
         [1164205] = "divineSacrifice",
-        [1100498] = "DivineProtection", 
+        [1100498] = "DivineProtection",
         [1154428] = "divinePlea",
         --Rogue
         [112983] = "sprint",	--Sprint rank 1
@@ -111,7 +111,7 @@ SoundAlerterSpells = {
         --Hunter
         [1153480] = "roarofsacrifice",
         [1134471] = "theBeastWithin",
-        [1119263] = "deterrence",	
+        [1119263] = "deterrence",
         --Warlock
         [1117941] = "shadowtrance",
     },
@@ -122,7 +122,7 @@ SoundAlerterSpells = {
         [1100871] = "shieldWallDown",
         [1112292] = "deathWishdown",
         --Paladin
-        [1100498] = "DivineProtectionDown", 
+        [1100498] = "DivineProtectionDown",
         [1110278] = "protectionDown",
         [11642] = "bubbleDown",
         --Rogue
@@ -138,10 +138,10 @@ SoundAlerterSpells = {
         [1149039] = "lichborneDown",
         [1148707] = "antimagicshelldown",
         --Druid
-        [1148505] = "Starfalldown",	--starfall rank 1
-        [1153199] = "Starfalldown",	--starfall rank 2
-        [1153200] = "Starfalldown",	--starfall rank 3
-        [1153201] = "Starfalldown",	--starfall rank 4
+        [1148505] = "Starfalldown",	--Starfall rank 1
+        [1153199] = "Starfalldown",	--Starfall rank 2
+        [1153200] = "Starfalldown",	--Starfall rank 3
+        [1153201] = "Starfalldown",	--Starfall rank 4
         --Hunter
         [1119263] = "Deterrencedown",
         [1134471] = "beastwithindown",
@@ -218,8 +218,8 @@ SoundAlerterSpells = {
         [1150763] = "resurrection",	--Revive rank 7
         --druid
         [1118658] = "hibernate",
-        [1102637] = "hibernate", 
-        [1133786] = "cyclone", 
+        [1102637] = "hibernate",
+        [1133786] = "cyclone",
 		[1100740] = "Tranquility",
         [1148465] = "starfire", --rank 10
         --paladin
@@ -227,7 +227,7 @@ SoundAlerterSpells = {
         --rogue
         --warrior
         --priest		
-        [1108129] = "manaBurn", 
+        [1108129] = "manaBurn",
         [1109484] = "shackleUndead",
         [1164843] = "divineHymn",
         [11605] = "mindControl",
@@ -243,9 +243,9 @@ SoundAlerterSpells = {
         [1161025] = "polymorph",
         [1161780] = "polymorph",
         [1128271] = "polymorph",
-		[1398221] = "ringoffrost", 
+		[1398221] = "ringoffrost",
         --Hunter
-        [982] = "revivePet", 
+        [982] = "revivePet",
         [1114327] = "scareBeast",
         --Warlock
         [6215] = "fear",
@@ -260,6 +260,11 @@ SoundAlerterSpells = {
 		[1398206] = "handofguldan",
     },
     castSuccess = { -- SPELL_CAST_SUCCESS: Instant spells or spells completing a cast that are important
+        --general (all classes)
+        [42292] = "Trinket",    -- PvP Trinket (retail)
+        [59752] = "Trinket",    -- Every Man for Himself - Human racial (retail)
+        [1142292] = "Trinket",  -- PvP Trinket (Ascension 11-prefix)
+        [1159752] = "Trinket",  -- Every Man for Himself (Ascension 11-prefix)
         --mage
         [1112051] = "evocation",
         [1111958] = "coldSnap",
@@ -277,17 +282,17 @@ SoundAlerterSpells = {
         [1149203] = "hungeringCold",
         [1149005] = "markofblood",
         --hunter
-        [1123989] = "readiness", 
-        [1119386] = "wyvernSting", 
-        [1149010] = "wyvernSting", 
+        [1123989] = "readiness",
+        [1119386] = "wyvernSting",
+        [1149010] = "wyvernSting",
         [1134490] = "silencingshot",
         [1119434] = "aimedshot", --Aimed Shot rank 1
         [1149050] = "aimedshot", --Aimed Shot rank 9
         [1153271] = "masterscall",
         [1160192] = "freezingtrap", --double check
-        [1114309] = "freezingtrap", --freezing trap effect
-        [1113810] = "frosttrap", --frost trap aura
-        [1113809] = "frosttrap", --frost trap aura
+        [1114309] = "freezingtrap", --Freezing trap effect
+        [1113810] = "frosttrap", --Frost trap aura
+        [1113809] = "frosttrap", --Frost trap aura
         [1114311] = "freezingtrap",
         [111499] = "frosttrap",
 		[1133044] = "powershot",
@@ -306,7 +311,12 @@ SoundAlerterSpells = {
 		[1398193] = "stampendingroar",
 		[1398192] = "massentanglement",
 		[2304523] = "solarbeam",
-		[1105215] = "prowl",
+		[5215] = "prowl",       -- Prowl rank 1 (retail)
+		[1105215] = "prowl",    -- Prowl rank 1 (Ascension 11-prefix)
+		[6783] = "prowl",       -- Prowl rank 2 (retail)
+		[1106783] = "prowl",    -- Prowl rank 2 (Ascension 11-prefix)
+		[9913] = "prowl",       -- Prowl rank 3 (retail)
+		[1109913] = "prowl",    -- Prowl rank 3 (Ascension 11-prefix)
         --paladin
         [1120066] = "repentance",
         [1110308] = "hammerofjustice",
@@ -319,9 +329,13 @@ SoundAlerterSpells = {
         [2094] = "blind",
         [1766] = "kick",
         [1114185] = "preparation",
-        [1126889] = "vanish",
+        [26889] = "vanish",     -- Vanish (retail)
+        [1126889] = "vanish",   -- Vanish (Ascension 11-prefix)
         [1113877] = "bladeflurry",
-        [1784] = "stealth",
+        [1784] = "stealth",     -- Stealth (retail)
+        [1101784] = "stealth",  -- Stealth (Ascension 11-prefix)
+        [1785] = "stealth",     -- Stealth rank 2 (retail)
+        [1101785] = "stealth",  -- Stealth rank 2 (Ascension)
 		[1398189] = "smokebomb",
         --shaman
         [1102825] = "bloodlust",
@@ -336,15 +350,15 @@ SoundAlerterSpells = {
         [1102457] = "battlestance",
         [1100071] = "defensestance",
         [1102458] = "berserkerstance",
-		[1180850] = "gladiatorstance", --gladiatorstance to be added on voice
+		[1180850] = "gladiatorstance",
         [1100676] = "disarm",
-        [115246] = "fear3", --intimidating shout, works
+        [1165930] = "fear3", --Intimidating shout
         [1106552] = "pummel",
         [1100072] = "shieldBash",
         --priest
         [1110890] = "fear4", -- Psychic Scream
         [1134433] = "shadowFiend", -- works
-        [1164044] = "disarm3", --psychic horror, works
+        [1164044] = "disarm3", --Psychic horror
         [1148173] = "desperatePrayer",
     },
     enemyDebuffs = { -- CC applied by me to a hostile player
@@ -360,7 +374,7 @@ SoundAlerterSpells = {
         [1151724] = "sapdown",
         [118] = "polydown",
         [1112826] = "polydown",
-        [1133786] = "cyclonedown", --menu
+        [1133786] = "cyclonedown",
         [1151514] = "hexdown",
     },
     interruptFriend = { -- Interrupts by a friendly unit
@@ -387,7 +401,7 @@ SoundAlerterSpells = {
     friendCCSuccess = { -- Successful CC application on a friendly unit
         [1114309] = "friendfrozen",
         [2094] = "blindfriend",
-        [115246] = "friendfeared", --intimidating shout
+        [1165930] = "friendfeared", --Intimidating shout
         [1151724] = "friendsapped",
         [1133786] = "friendcycloned",
         [1110308] = "friendstunned",
@@ -428,12 +442,12 @@ SoundAlerterSpells = {
         [1128271] = "Polymorph",
         [6215] = "Fear",
         [1160192] = "Freezingtrap", --double check
-        [1114309] = "Freezingtrap", --freezing trap effect
-        [1113810] = "Frosttrap", --frost trap aura
-        [1113809] = "Frosttrap", --frost trap aura
+        [1114309] = "Freezingtrap", --Freezing trap effect
+        [1113810] = "Frosttrap", --Frost trap aura
+        [1113809] = "Frosttrap", --Frost trap aura
         [1114311] = "Freezingtrap",
         [111499] = "Frosttrap",
-        [115246] = "Fear3", --intimidating shout
+        [1165930] = "Fear3", --Intimidating shout
         [1117928] = "Fear2", --Howl of Terror
         [2094] = "Blind",
         [1151724] = "Sap",
@@ -449,10 +463,10 @@ SoundAlerterSpells = {
         [1119434] = "Aimedshot", --Aimed Shot rank 1
         [1149050] = "Aimedshot", --Aimed Shot rank 9
         [1147476] = "Strangulate",
-        [1151722] = "Disarm2", --dismantle
+        [1151722] = "Disarm2", --Dismantle
         [1149005] = "Markofblood",
-        [1119386] = "wyvernSting", 
-        [1149010] = "wyvernSting", 
+        [1119386] = "wyvernSting",
+        [1149010] = "wyvernSting",
         [1106358] = "seduction",
     },
 }

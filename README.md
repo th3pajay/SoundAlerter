@@ -1,7 +1,6 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
 ![Version](https://img.shields.io/badge/version-1.2.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
-
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
@@ -29,6 +28,7 @@
 
 ---
 
+
 ## 🛠️ Getting Started
 
 ### Installation
@@ -38,7 +38,7 @@
 
 ### Quick Setup
 1.  Type `/sa` in-game (or click the Minimap Button).
-2.  Follow the steps in the **Quick Start** tab (set zones, alert scope, and audio).
+2.  Follow the steps in the **Quick Start** tab (set zones, alert scope and audio).
 3.  Enter an Arena or Battleground to immediately hear the voice alerts.
 
 ---
@@ -68,7 +68,12 @@
 
 ## License
 
-MIT License - See source files for full details.
+MIT License
+
+## Shoutout
+Respect and admiration to these developers for their ingenuity and inspiration:
+* https://github.com/mmobrain/LootCollector/tree/main
+* https://github.com/MCribari/Spy-Bronzebeard
 
 Fair winds, fellow adventurers! 🌊
 *th3pajay / Starmistx - An old feral (https://warcraftmovies.com/pv.php?t=3&l=pajay)*
