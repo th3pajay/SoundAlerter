@@ -208,7 +208,7 @@ function SoundAlerter:OnOptionsCreate()
 				args = {
 					nextStepsDescription = {
 						type = 'description',
-						name = "|cff00FF00You're all set!|r Enter an arena or battleground to hear voice alerts.\n\n|cffFFFFFFAdvanced Configuration:|r\n• |cffFFD700Voice Alerts|r - Customize 450+ spell alerts per class\n• |cffFFD700Proximity Alerts|r - Detect enemy stealth nearby\n• |cffFFD700Chat Alerts|r - Send spell announcements to party/raid chat\n\n|cffFF0000Need Help?|r Type |cffFFD700/sa|r to reopen this menu anytime.\n\n|cffADD8E6th3pajay|r",
+						name = "|cff00FF00You're all set!|r Enter an arena or battleground to hear voice alerts.\n\n|cffFFFFFFAdvanced Configuration:|r\n• |cffFFD700Voice Alerts|r - Customize 450+ spell alerts per class\n• |cffFFD700Proximity Alerts|r - Detect enemies nearby\n• |cffFFD700Chat Alerts|r - Send spell announcements to party/raid chat\n\n|cffFF0000Need Help?|r Type |cffFFD700/sa|r to reopen this menu anytime.\n\n|cffADD8E6th3pajay|r",
 						fontSize = "medium",
 						order = 1,
 					},
@@ -679,6 +679,59 @@ function SoundAlerter:OnOptionsCreate()
 							end
 						end,
 					},
+					clickHeader = {
+						type = 'header',
+						name = "Click Interaction (World PvP Only)",
+						order = 10,
+					},
+					clickDescription = {
+						type = 'description',
+						name = "Click toast notifications to quickly target enemies in world PvP. Features only work in contested/hostile zones, not in arenas or battlegrounds.",
+						fontSize = "medium",
+						order = 11,
+					},
+					clickEnabled = {
+						type = 'toggle',
+						name = "Enable Click Interaction",
+						desc = "Allow clicking toast notifications to interact with enemies (world PvP only)",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 12,
+						set = function(info, value)
+							sadb.proximityToasts.clickEnabled = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.clickEnabled
+						end,
+					},
+					enableClickToTarget = {
+						type = 'toggle',
+						name = "Click to Target",
+						desc = "Normal click: Target the enemy player",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled or not sadb.proximityToasts.clickEnabled end,
+						width = "full",
+						order = 13,
+						set = function(info, value)
+							sadb.proximityToasts.enableClickToTarget = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.enableClickToTarget
+						end,
+					},
+					enableFocusTarget = {
+						type = 'toggle',
+						name = "Shift-Click for Focus",
+						desc = "Shift + Click: Target enemy and set as focus target",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled or not sadb.proximityToasts.clickEnabled end,
+						width = "full",
+						order = 14,
+						set = function(info, value)
+							sadb.proximityToasts.enableFocusTarget = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.enableFocusTarget
+						end,
+					},
 				},
 			},
 			futureFeatures = {
@@ -858,7 +911,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffF58CBAPaladin|r",
 						order = 9,
-						args = listOption({1131821,1110278,1101044,11642,1106940,1100498,1164205,1154428},"auraApplied")
+						args = listOption({1131821,1110278,1101044,11642,1106940,1100498,1164205,1154428,1180101},"auraApplied")
 					},
 					priest	= {
 						type = 'group',
@@ -893,7 +946,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cff9482C9Warlock|r",
 						order = 14,
-						args = listOption({1117941},"auraApplied"),
+						args = listOption({1117941,1147241,2304512},"auraApplied"),
 						},
 					races = {
 						type = 'group',
@@ -1021,7 +1074,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cff69CCF0Mage|r",
 						order = 5,
-						args = listOption({118,1398221},"castStart"),
+						args = listOption({118,954854},"castStart"),
 					},
 					paladin = {
 						type = 'group',
@@ -1050,7 +1103,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cff9482C9Warlock|r",
 						order = 9,
-						args = listOption({6215,1117928,710,11712,1398206},"castStart"),
+						args = listOption({6215,1117928,710,11712},"castStart"),
 					},
 				},
 			},
@@ -1090,7 +1143,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cff69CCF0Mage|r",
 						order = 4,
-						args = listOption({1144445,1112051,1144572,1111958,1102139,1100066,1398172,1398160},"castSuccess"),
+						args = listOption({1144445,1112051,1144572,1111958,1102139,1100066,2110161,1436397,2110021},"castSuccess"),
 					},
 					paladin = {
 						type = 'group',
@@ -1111,7 +1164,7 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffFFF569Rogue|r",
 						order = 7,
-						args = listOption({1151722,1151724,2094,1766,1114185,1126889,1113877,1784,1398189},"castSuccess"),
+						args = listOption({1151722,1151724,2094,1766,1114185,1126889,1113877,1784,2304501},"castSuccess"),
 					},
 					shaman	= {
 						type = 'group',
@@ -1125,15 +1178,15 @@ function SoundAlerter:OnOptionsCreate()
 						inline = true,
 						name = "|cffC79C6EWarrior|r",
 						order = 9,
-						args = listOption({1102457,1102458,1100071,1180850,1100676,1165930,1106552,1100072},"castSuccess"),
+						args = listOption({1102457,1102458,1100071,1180851,1100676,1165930,1106552,1100072},"castSuccess"),
 					},
 					warlock = {
 						type = 'group',
 						inline = true,
 						name = "|cff9482C9Warlock|r",
 						order = 10,
-						args = listOption({115138,1119647,1148020,1147860,1106358,1398195,1398197},"castSuccess"),
-					},	
+						args = listOption({1105138,1119647,1148020,1147860,1106358,2304566,2304611,1117925,2304521},"castSuccess"),
+					},
 				},
 			},
 			enemydebuff = {

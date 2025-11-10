@@ -1104,7 +1104,7 @@ function SoundAlerter:CheckProximityAlert(unit)
     end
 
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
-        self.ProximityToasts:ShowToast(unitName, unitClass, nil, guid, unitLevel)
+        self.ProximityToasts:ShowToast(unitName, unitClass, nil, guid, unitLevel, unit)
     end
 
     -- Chat alert
@@ -1189,7 +1189,7 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
     end
 
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
-        self.ProximityToasts:ShowToast(name, unitClass, nil, guid, nil)
+        self.ProximityToasts:ShowToast(name, unitClass, nil, guid, nil, nil)
     end
 
     -- Chat alert

@@ -50,6 +50,7 @@ SoundAlerterSpells = {
         [1164205] = "divineSacrifice",
         [1100498] = "DivineProtection",
         [1154428] = "divinePlea",
+		[1180101] = "guardianofancientkings",
         --Rogue
         [112983] = "sprint",	--Sprint rank 1
         [118696] = "sprint",	--Sprint rank 3
@@ -114,6 +115,8 @@ SoundAlerterSpells = {
         [1119263] = "deterrence",
         --Warlock
         [1117941] = "shadowtrance",
+		[1147241] = "metamorphosis",
+		[2304512] = "unendingresolve",
     },
     auraRemoved = { -- SPELL_AURA_REMOVED: Important buffs/debuffs falling off
         --Warrior
@@ -243,7 +246,7 @@ SoundAlerterSpells = {
         [1161025] = "polymorph",
         [1161780] = "polymorph",
         [1128271] = "polymorph",
-		[1398221] = "ringoffrost",
+		[954854] = "ringoffrost",
         --Hunter
         [982] = "revivePet",
         [1114327] = "scareBeast",
@@ -257,7 +260,6 @@ SoundAlerterSpells = {
         [11712] =  "summonpet",
         [11697] = "summonpet",
         [1130146] = "summonpet", --felguard, works
-		[1398206] = "handofguldan",
     },
     castSuccess = { -- SPELL_CAST_SUCCESS: Instant spells or spells completing a cast that are important
         --general (all classes)
@@ -272,8 +274,9 @@ SoundAlerterSpells = {
         [1144445] = "hotStreak", --double check spell ID
         [1102139] = "counterspell",
         [1100066] = "invisibility",
-		[1398172] = "meteor",
-		[1398160] = "altertime",
+		[2110161] = "meteor",
+		[1436397] = "altertime",
+		[2110021] = "frozenorb",
         --DK
         [1147528] = "mindFreeze",
         [1147476] = "strangulate",
@@ -297,15 +300,17 @@ SoundAlerterSpells = {
         [111499] = "frosttrap",
 		[1133044] = "powershot",
         --warlock
-        [115138] = "DrainMana",
+        [1105138] = "DrainMana",
         [1117928] = "fear2", --Howl of Terror
         [1119647] = "spellLock",
         [1148020] = "demonicCircleTeleport",
+		[2304521] = "demonicleap",
         [116789] = "deathcoil",
         [1147860] = "deathcoil",
+		[1117925] = "deathcoil",
         [1106358] = "Seduction",
-		[1398195] = "unendingresolve",
-		[1398197] = "bloodhorror",
+		[2304566] = "bloodhorror",
+		[2304611] = "handofguldan",
 		--druid
         [1133831] = "forceofnature",
 		[1398193] = "stampendingroar",
@@ -336,7 +341,7 @@ SoundAlerterSpells = {
         [1101784] = "stealth",  -- Stealth (Ascension 11-prefix)
         [1785] = "stealth",     -- Stealth rank 2 (retail)
         [1101785] = "stealth",  -- Stealth rank 2 (Ascension)
-		[1398189] = "smokebomb",
+		[2304501] = "smokebomb",
         --shaman
         [1102825] = "bloodlust",
         [1132182] = "heroism",
@@ -350,7 +355,7 @@ SoundAlerterSpells = {
         [1102457] = "battlestance",
         [1100071] = "defensestance",
         [1102458] = "berserkerstance",
-		[1180850] = "gladiatorstance",
+		[1180851] = "gladiatorstance",
         [1100676] = "disarm",
         [1165930] = "fear3", --Intimidating shout
         [1106552] = "pummel",

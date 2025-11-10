@@ -166,6 +166,10 @@ dbDefaults = {
 			maxConcurrent = 3,
 			positionX = 0,
 			positionY = -200,
+			-- Click-to-target functionality (World PvP only)
+			clickEnabled = true,
+			enableClickToTarget = true,
+			enableFocusTarget = true,
 		},
 
 		-- ===========================

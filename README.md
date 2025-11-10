@@ -1,6 +1,6 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+![Version](https://img.shields.io/badge/version-1.3.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
 <p align="center">
 <img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
@@ -13,7 +13,7 @@
 
 ### 🗣️ Combat & Alert System
 * **Voice Alerts:** Hear **450+ critical spell callouts**, logically organized by intent (defensives, Crowd Control (CC), interrupts, cooldowns).
-* **Proximity Alerts:** Receive **visual toasts** or **audible alerts** (with class-colored backgrounds) for nearby enemies (both PvE and PvP). Customize the detection threshold and output.
+* **Proximity Alerts:** Receive **visual toasts** or **audible alerts** (with class-colored backgrounds) for nearby enemies (both PvE and PvP). **Click toasts to instantly target enemies** or **Shift-click to set focus** (World PvP only). Customize the detection threshold and output.
 * **Chat Integration:** **Auto-announce critical spells** (CC, interrupts, cooldowns) to your teammates via Party, Raid, or Battleground chat channels.
 
 ### ⚙️ Usability & Customization
@@ -48,7 +48,7 @@
 | Feature | Tab Location | Description |
 | :--- | :--- | :--- |
 | **Customize Voice Alerts** | **Voice Alerts** tab | Toggle and fine-tune the 450+ spell alerts by class and intent. |
-| **Proximity Tuning** | **Proximity Alerts** tab | Adjust the distance threshold and choose the output (voice or toast pop-ups) for nearby enemies. |
+| **Proximity Tuning** | **Proximity Alerts** tab | Adjust the distance threshold and choose the output (voice or toast pop-ups) for nearby enemies. Enable **click-to-target** and **shift-click focus** for instant enemy targeting in World PvP. |
 | **Create Custom Alerts** | **Advanced** tab | Define your own rules for specific in-game events. |
 | **Chat Integration** | **Voice Alerts** tab > **Chat Alerts** | Enable multi-channel output to alert teammates of CC, interrupts, and cooldowns. |
 | **Find Spell IDs** | **Developer Tools** tab | Use this tool to quickly find spell IDs for creating new custom alerts. |
@@ -64,6 +64,7 @@
 | **Search Speed** | <1ms | Achieved through advanced indexing. |
 | **Memory Usage** | **~485 KB** | Extremely low memory footprint. |
 | **Spell Scanning** | Non-blocking (70,000 IDs in chunks) | **Non-blocking Scanning** prevents game freezes; uses `GetSpellInfo()` and `GameTooltip` for accurate data. |
+| **Toast Click Latency** | <1ms (common case) | **Optimized targeting** with pre-built unit scan lists and cached combat state for instant enemy targeting. |
 | **Development** | N/A | New features merged to `develop` branch first, then `main`. |
 
 ## License
