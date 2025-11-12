@@ -170,6 +170,8 @@ dbDefaults = {
 			clickEnabled = true,
 			enableClickToTarget = true,
 			enableFocusTarget = true,
+			-- Visual enhancements
+			rainbowBorder = false,
 		},
 
 		-- ===========================

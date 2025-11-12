@@ -1,19 +1,34 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+![Version](https://img.shields.io/badge/version-1.3.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
 <p align="center">
-<img src="SoundAlerter/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
+<img src="Media/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
 
 **Never miss Cyclone, Divine Shield, or enemy cooldowns again.** SoundAlerter provides real-time, high-priority audio and visual cues to give you the competitive edge in World of Warcraft PvP.
 
 ---
+## ✨ Experimental Features
+
+* **Sticky Toasts:** **Hover** over to stop in-frame countdown of toast fade-out. Toggle rainbow edge colors for flair.
+
+<p align="center">
+<img src="Media/toast_sticky.gif?raw=true" alt="Sticky Toast" width="256"/>
+</p>
+
+* **Proximity Alerts:** Reorganized options menu.
+* **Find Spell - Upgraded looks:** **Follow along** the spell list database progress bar as you rebuild.
+
+<p align="center">
+<img src="Media/findspell.png?raw=true" alt="Sticky Toast" width="256"/>
+</p>
+
 
 ## ✨ Key Features & Functionality
 
 ### 🗣️ Combat & Alert System
 * **Voice Alerts:** Hear **450+ critical spell callouts**, logically organized by intent (defensives, Crowd Control (CC), interrupts, cooldowns).
-* **Proximity Alerts:** Receive **visual toasts** or **audible alerts** (with class-colored backgrounds) for nearby enemies (both PvE and PvP). **Click toasts to instantly target enemies** or **Shift-click to set focus** (World PvP only). Customize the detection threshold and output.
+* **Proximity Alerts:** Receive **prominent visual toasts** or **audible alerts** for nearby enemies. **Click toasts to instantly target enemies** or **Shift-click to set focus** (World PvP only). Customize the detection threshold and output.
 * **Chat Integration:** **Auto-announce critical spells** (CC, interrupts, cooldowns) to your teammates via Party, Raid, or Battleground chat channels.
 
 ### ⚙️ Usability & Customization

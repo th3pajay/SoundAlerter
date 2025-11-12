@@ -418,7 +418,7 @@ function SoundAlerter:OnOptionsCreate()
 	})
 
 	-- ===========================
-	-- PROXIMITY ALERTS TAB (SLC: Lovable)
+	-- PROXIMITY ALERTS TAB - UX REDESIGNED
 	-- ===========================
 	self:AddOption('ProximityAlerts', {
 		type = 'group',
@@ -426,16 +426,24 @@ function SoundAlerter:OnOptionsCreate()
 		desc = "Detect enemy stealthed players nearby and get voice alerts. Perfect for spotting Rogues and Druids in stealth.",
 		order = 2.5,
 		args = {
+			-- ===========================
+			-- INTRODUCTION DESCRIPTION
+			-- ===========================
 			description = {
 				type = 'description',
 				name = "|cffFFD700Proximity Alerts|r detect hostile players near you by checking targets and mouseovers.\n\nThis feature is especially useful for:\n• Detecting stealthed Rogues and Druids\n• Awareness in world PvP \n• Preventing ganks and ambushes\n\n|cffFF0000Important:|r Proximity detection only works when you target or mouseover an enemy player. Limited alerts are available based on combat logs.\n",
 				fontSize = "medium",
 				order = 1,
 			},
-			enableGroup = {
+
+			-- ===========================
+			-- SECTION 1: BASIC SETUP
+			-- ===========================
+			basicSetup = {
 				type = 'group',
 				inline = true,
-				name = "Enable Proximity Detection",
+				name = "1. Basic Setup",
+				desc = "Core settings to enable and configure proximity detection",
 				set = setOption,
 				get = getOption,
 				order = 2,
@@ -443,28 +451,33 @@ function SoundAlerter:OnOptionsCreate()
 					proximityEnabled = {
 						type = 'toggle',
 						name = "Enable Proximity Alerts",
-						desc = "Master toggle for proximity detection system",
+						desc = "Master toggle for proximity detection system. Enable this first to activate all proximity features.",
 						width = "full",
 						order = 1,
 					},
-				},
-			},
-			zonesGroup = {
-				type = 'group',
-				inline = true,
-				name = "Active Zones",
-				desc = "Select where proximity alerts should be active",
-				set = setOption,
-				get = getOption,
-				order = 3,
-				args = {
+					spacer1 = {
+						type = 'description',
+						name = " ",
+						order = 2,
+					},
+					zoneHeader = {
+						type = 'header',
+						name = "Active Zones",
+						order = 3,
+					},
+					zoneDescription = {
+						type = 'description',
+						name = "Select where proximity alerts should be active:",
+						fontSize = "medium",
+						order = 4,
+					},
 					proximityWorld = {
 						type = 'toggle',
 						name = "World PvP",
 						desc = "Enable proximity alerts in open world PvP zones",
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 1,
+						order = 5,
 					},
 					proximityBattleground = {
 						type = 'toggle',
@@ -472,7 +485,7 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Enable proximity alerts in battlegrounds (useful for detecting flag carriers and node defenders)",
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 2,
+						order = 6,
 					},
 					proximityArena = {
 						type = 'toggle',
@@ -480,19 +493,18 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Enable proximity alerts in arenas (less useful due to small arena size)",
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 3,
+						order = 7,
 					},
-				},
-			},
-			cooldownGroup = {
-				type = 'group',
-				inline = true,
-				name = "Alert Cooldown",
-				desc = "Prevent alert spam for the same player",
-				set = setOption,
-				get = getOption,
-				order = 4,
-				args = {
+					spacer2 = {
+						type = 'description',
+						name = " ",
+						order = 8,
+					},
+					cooldownHeader = {
+						type = 'header',
+						name = "Alert Cooldown",
+						order = 9,
+					},
 					proximityCooldown = {
 						type = 'range',
 						name = "Cooldown Duration (seconds)",
@@ -502,26 +514,52 @@ function SoundAlerter:OnOptionsCreate()
 						step = 5,
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 1,
+						order = 10,
 					},
 				},
 			},
-			chatIntegration = {
+
+			-- ===========================
+			-- SECTION 2: NOTIFICATION METHODS
+			-- ===========================
+			notificationMethods = {
 				type = 'group',
 				inline = true,
-				name = "Chat Integration",
-				desc = "Send proximity alerts to chat channels",
+				name = "2. Notification Methods",
+				desc = "Choose how you want to be alerted to nearby enemies",
 				set = setOption,
 				get = getOption,
-				order = 5,
+				order = 3,
 				args = {
+					methodsInfo = {
+						type = 'description',
+						name = "Choose how proximity alerts notify you when enemies are detected nearby:",
+						fontSize = "medium",
+						order = 1,
+					},
+					audioHeader = {
+						type = 'header',
+						name = "Audio Alerts",
+						order = 2,
+					},
+					audioNote = {
+						type = 'description',
+						name = "|cff00FF00Enabled by default.|r Voice alerts are configured in the main Voice Alerts tab.\n",
+						fontSize = "medium",
+						order = 3,
+					},
+					chatHeader = {
+						type = 'header',
+						name = "Chat Alerts",
+						order = 4,
+					},
 					proximityChat = {
 						type = 'toggle',
 						name = "Send Chat Messages",
 						desc = "Announce proximity detections in chat (useful for alerting teammates)",
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 1,
+						order = 5,
 					},
 					proximityChatText = {
 						type = 'input',
@@ -529,26 +567,26 @@ function SoundAlerter:OnOptionsCreate()
 						desc = "Customize the chat message. Available placeholders:\n#class# - Enemy class name\n#player# - Enemy player name\n\nExample: [#class#] #player# detected nearby!",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityChat end,
 						width = 'full',
-						order = 2,
+						order = 6,
 					},
-				},
-			},
-			toastSettings = {
-				type = 'group',
-				inline = true,
-				name = "Visual Toast Notifications",
-				desc = "Show pop-up notifications for proximity alerts",
-				set = setOption,
-				get = getOption,
-				order = 5.5,
-				args = {
-					enabled = {
+					toastHeader = {
+						type = 'header',
+						name = "Visual Toast Notifications",
+						order = 7,
+					},
+					toastDescription = {
+						type = 'description',
+						name = "Show pop-up notifications for proximity alerts:",
+						fontSize = "medium",
+						order = 8,
+					},
+					toastEnabled = {
 						type = 'toggle',
 						name = "Enable Toast Notifications",
-						desc = "Show visual pop-up toasts when enemies are detected nearby",
+						desc = "Show visual pop-up toasts when enemies are detected nearby. Additional customization options appear below when enabled.",
 						disabled = function() return not sadb.proximityEnabled end,
 						width = "full",
-						order = 1,
+						order = 9,
 						set = function(info, value)
 							sadb.proximityToasts.enabled = value
 							if not value and SoundAlerter.ProximityToasts then
@@ -568,40 +606,12 @@ function SoundAlerter:OnOptionsCreate()
 						step = 0.5,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 2,
+						order = 10,
 						set = function(info, value)
 							sadb.proximityToasts.displayDuration = value
 						end,
 						get = function(info)
 							return sadb.proximityToasts.displayDuration
-						end,
-					},
-					showPlayerName = {
-						type = 'toggle',
-						name = "Show Player Name",
-						desc = "Display enemy player name in toast",
-						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
-						width = "full",
-						order = 3,
-						set = function(info, value)
-							sadb.proximityToasts.showPlayerName = value
-						end,
-						get = function(info)
-							return sadb.proximityToasts.showPlayerName
-						end,
-					},
-					useClassColors = {
-						type = 'toggle',
-						name = "Use Class Colors",
-						desc = "Color toast background based on enemy class",
-						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
-						width = "full",
-						order = 4,
-						set = function(info, value)
-							sadb.proximityToasts.useClassColors = value
-						end,
-						get = function(info)
-							return sadb.proximityToasts.useClassColors
 						end,
 					},
 					maxConcurrent = {
@@ -613,7 +623,7 @@ function SoundAlerter:OnOptionsCreate()
 						step = 1,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 5,
+						order = 11,
 						set = function(info, value)
 							sadb.proximityToasts.maxConcurrent = value
 						end,
@@ -621,21 +631,100 @@ function SoundAlerter:OnOptionsCreate()
 							return sadb.proximityToasts.maxConcurrent
 						end,
 					},
-					positionHeader = {
-						type = 'header',
-						name = "Screen Position",
-						order = 6,
+				},
+			},
+
+			-- ===========================
+			-- SECTION 3: TOAST APPEARANCE
+			-- ===========================
+			toastAppearance = {
+				type = 'group',
+				inline = true,
+				name = "3. Toast Appearance",
+				desc = "Customize the visual style of toast notifications",
+				set = setOption,
+				get = getOption,
+				order = 4,
+				args = {
+					appearanceInfo = {
+						type = 'description',
+						name = "Customize how toast notifications look:",
+						fontSize = "medium",
+						order = 1,
+					},
+					showPlayerName = {
+						type = 'toggle',
+						name = "Show Player Name",
+						desc = "Display enemy player name in toast",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 2,
+						set = function(info, value)
+							sadb.proximityToasts.showPlayerName = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.showPlayerName
+						end,
+					},
+					useClassColors = {
+						type = 'toggle',
+						name = "Use Class Colors",
+						desc = "Color toast background based on enemy class (e.g., red for Warrior, purple for Warlock)",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 3,
+						set = function(info, value)
+							sadb.proximityToasts.useClassColors = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.useClassColors
+						end,
+					},
+					rainbowBorder = {
+						type = 'toggle',
+						name = "Rainbow Border Animation",
+						desc = "Enable smooth, slow rainbow color transitions on toast borders. Creates a visually distinct effect.",
+						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
+						width = "full",
+						order = 4,
+						set = function(info, value)
+							sadb.proximityToasts.rainbowBorder = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.rainbowBorder
+						end,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 4: TOAST POSITION & TESTING
+			-- ===========================
+			toastPosition = {
+				type = 'group',
+				inline = true,
+				name = "4. Toast Position & Testing",
+				desc = "Adjust where toasts appear on screen and preview your settings",
+				set = setOption,
+				get = getOption,
+				order = 5,
+				args = {
+					positionInfo = {
+						type = 'description',
+						name = "Adjust the screen position of toast notifications:",
+						fontSize = "medium",
+						order = 1,
 					},
 					positionX = {
 						type = 'range',
 						name = "Horizontal Position",
-						desc = "Adjust horizontal position on screen (0 = center)",
+						desc = "Adjust horizontal position on screen (0 = center, negative = left, positive = right)",
 						min = -500,
 						max = 500,
 						step = 10,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "normal",
-						order = 7,
+						order = 2,
 						set = function(info, value)
 							sadb.proximityToasts.positionX = value
 							if SoundAlerter.ProximityToasts then
@@ -649,13 +738,13 @@ function SoundAlerter:OnOptionsCreate()
 					positionY = {
 						type = 'range',
 						name = "Vertical Position",
-						desc = "Adjust vertical position on screen (negative = from top)",
+						desc = "Adjust vertical position on screen (0 = center, negative = down from top, positive = up from bottom)",
 						min = -500,
 						max = 500,
 						step = 10,
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "normal",
-						order = 8,
+						order = 3,
 						set = function(info, value)
 							sadb.proximityToasts.positionY = value
 							if SoundAlerter.ProximityToasts then
@@ -666,37 +755,52 @@ function SoundAlerter:OnOptionsCreate()
 							return sadb.proximityToasts.positionY
 						end,
 					},
+					spacer = {
+						type = 'description',
+						name = " ",
+						order = 4,
+					},
 					testButton = {
 						type = 'execute',
-						name = "Test Toast",
-						desc = "Show a test toast notification to preview the current settings",
+						name = "Test Toast Notification",
+						desc = "Show a test toast notification to preview the current settings (position, appearance, duration)",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
-						width = "normal",
-						order = 9,
+						width = "full",
+						order = 5,
 						func = function()
 							if SoundAlerter.ProximityToasts then
 								SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, nil)
 							end
 						end,
 					},
-					clickHeader = {
-						type = 'header',
-						name = "Click Interaction (World PvP Only)",
-						order = 10,
-					},
-					clickDescription = {
+				},
+			},
+
+			-- ===========================
+			-- SECTION 5: ADVANCED - CLICK INTERACTIONS
+			-- ===========================
+			clickInteractions = {
+				type = 'group',
+				inline = true,
+				name = "5. Advanced: Click Interactions",
+				desc = "Power user feature: Click toast notifications to target enemies",
+				set = setOption,
+				get = getOption,
+				order = 6,
+				args = {
+					advancedWarning = {
 						type = 'description',
-						name = "Click toast notifications to quickly target enemies in world PvP. Features only work in contested/hostile zones, not in arenas or battlegrounds.",
+						name = "|cffFF6600Advanced Feature:|r Click toast notifications to quickly target enemies.\n\n|cffFF0000World PvP Only:|r These features only work in contested/hostile open-world zones. They do NOT work in arenas or battlegrounds.\n",
 						fontSize = "medium",
-						order = 11,
+						order = 1,
 					},
 					clickEnabled = {
 						type = 'toggle',
 						name = "Enable Click Interaction",
-						desc = "Allow clicking toast notifications to interact with enemies (world PvP only)",
+						desc = "Allow clicking toast notifications to interact with enemies (world PvP only). Enable this to unlock click-to-target features.",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled end,
 						width = "full",
-						order = 12,
+						order = 2,
 						set = function(info, value)
 							sadb.proximityToasts.clickEnabled = value
 						end,
@@ -704,13 +808,23 @@ function SoundAlerter:OnOptionsCreate()
 							return sadb.proximityToasts.clickEnabled
 						end,
 					},
+					spacer1 = {
+						type = 'description',
+						name = " ",
+						order = 3,
+					},
+					clickOptionsHeader = {
+						type = 'header',
+						name = "Click Actions",
+						order = 4,
+					},
 					enableClickToTarget = {
 						type = 'toggle',
-						name = "Click to Target",
-						desc = "Normal click: Target the enemy player",
+						name = "Left-Click: Target Enemy",
+						desc = "Normal left-click on toast: Automatically target the detected enemy player",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled or not sadb.proximityToasts.clickEnabled end,
 						width = "full",
-						order = 13,
+						order = 5,
 						set = function(info, value)
 							sadb.proximityToasts.enableClickToTarget = value
 						end,
@@ -720,11 +834,11 @@ function SoundAlerter:OnOptionsCreate()
 					},
 					enableFocusTarget = {
 						type = 'toggle',
-						name = "Shift-Click for Focus",
-						desc = "Shift + Click: Target enemy and set as focus target",
+						name = "Shift+Click: Set Focus Target",
+						desc = "Hold Shift and click on toast: Target enemy and set as focus target (useful for tracking stealthers)",
 						disabled = function() return not sadb.proximityEnabled or not sadb.proximityToasts.enabled or not sadb.proximityToasts.clickEnabled end,
 						width = "full",
-						order = 14,
+						order = 6,
 						set = function(info, value)
 							sadb.proximityToasts.enableFocusTarget = value
 						end,
@@ -734,11 +848,15 @@ function SoundAlerter:OnOptionsCreate()
 					},
 				},
 			},
+
+			-- ===========================
+			-- SECTION 6: FUTURE FEATURES
+			-- ===========================
 			futureFeatures = {
 				type = 'group',
 				inline = true,
-				name = "Future Features (Placeholder)",
-				order = 6,
+				name = "6. Future Features (Placeholder)",
+				order = 7,
 				args = {
 					futureDescription = {
 						type = 'description',
@@ -1610,107 +1728,239 @@ function SoundAlerter:OnOptionsCreate()
 		desc = "Advanced tools for addon developers and power users. Find spell IDs, rebuild database, and access debug features.",
 		order = 5,
 		args = {
-			description = {
+			-- Premium Header Section
+			headerWelcome = {
 				type = 'description',
-				name = "Search the spell database to find spell IDs, ranks, and tooltips.\n\nThis tool helps you find spell IDs when adding new spells to spellist.lua.\n",
+				name = "|cff00D4FF===================================|r\n" ..
+					   "|cffFFD700        DEVELOPER TOOLS|r\n" ..
+					   "|cff00D4FF===================================|r\n\n" ..
+					   "|cffADD8E6Advanced utilities for addon development and spell database management.|r\n" ..
+					   "|cff888888Power user features for extending SoundAlerter functionality.|r\n",
 				fontSize = "medium",
+				order = 0.5,
+			},
+
+			-- Spell Finder Section
+			finderSection = {
+				type = 'group',
+				inline = true,
+				name = "|TInterface\\Icons\\INV_Misc_Spyglass_02:20|t  Spell Database Search",
 				order = 1,
-			},
-			openFinder = {
-				type = 'execute',
-				name = "Open Spell Finder Window",
-				desc = "Open the interactive spell search window with searchable results",
-				width = "full",
-				order = 2,
-				func = function()
-					if not SoundAlerter.findSpellFrame then
-						SoundAlerter.findSpellFrame = SoundAlerter:CreateFindSpellFrame()
-					end
-					SoundAlerter.findSpellFrame:Show()
-					-- Bring to front
-					if SoundAlerter.findSpellFrame.frame then
-						SoundAlerter.findSpellFrame.frame:Raise()
-					end
-				end,
-			},
-			separator1 = {
-				type = 'header',
-				name = "Database Management",
-				order = 3,
-			},
-			rebuild = {
-				type = 'execute',
-				name = "Rebuild Spell Database",
-				desc = "Rebuild the spell database from scratch (scans 70,000 spell IDs, takes ~3-4 seconds)",
-				width = "full",
-				order = 4,
-				confirm = true,
-				confirmText = "This will scan 70,000 spell IDs and take 3-4 seconds. Continue?",
-				func = function()
-					SoundAlerter:RebuildSpellDatabase()
-				end,
-			},
-			separator2 = {
-				type = 'header',
-				name = "Database Information",
-				order = 5,
-			},
-			dbstats = {
-				type = 'description',
-				name = function()
-					local db = SoundAlerter.spellDatabase
-					local count = SoundAlerter:CountSpells()
-					local status
-
-					if db.isBuilding then
-						status = string.format("Status: |cFFFFAA00Building database... %.1f%% complete|r\n", db.progress)
-						status = status .. string.format("Progress: %d / 70,000 spell IDs scanned\n", db.totalScanned)
-					else
-						status = string.format("Status: |cFF00FF00Ready|r\n")
-						status = status .. string.format("Spells Indexed: %d\n", count)
-
-						if db.lastUpdate > 0 then
-							local age = time() - db.lastUpdate
-							local ageText
-							if age < 60 then
-								ageText = "just now"
-							elseif age < 3600 then
-								ageText = math.floor(age / 60) .. " minutes ago"
-							elseif age < 86400 then
-								ageText = math.floor(age / 3600) .. " hours ago"
-							else
-								ageText = math.floor(age / 86400) .. " days ago"
+				args = {
+					finderDescription = {
+						type = 'description',
+						name = "|cffFFFFFFInteractive spell finder with 70,000+ indexed spells.|r\n\n" ..
+							   "|cff00FF00Features:|r Search by name, filter by rank, view tooltips, copy IDs\n" ..
+							   "|cffFFD700Use Case:|r Finding spell IDs when adding new spells to spellist.lua\n",
+						fontSize = "medium",
+						order = 1,
+					},
+					openFinder = {
+						type = 'execute',
+						name = "|cff00D4FF[LAUNCH SPELL FINDER]|r",
+						desc = "Open the interactive spell search window with real-time results and tooltip previews",
+						width = "full",
+						order = 2,
+						func = function()
+							if not SoundAlerter.findSpellFrame then
+								SoundAlerter.findSpellFrame = SoundAlerter:CreateFindSpellFrame()
 							end
-							status = status .. string.format("Last Updated: %s\n", ageText)
-						end
-					end
-
-					-- Memory estimate
-					local memKB = math.floor((count * 5 + #db.names * 25) / 1024)
-					status = status .. string.format("Estimated Memory: ~%d KB\n", memKB)
-
-					return "\n" .. status
-				end,
-				fontSize = "medium",
-				order = 6,
+							SoundAlerter.findSpellFrame:Show()
+							-- Bring to front
+							if SoundAlerter.findSpellFrame.frame then
+								SoundAlerter.findSpellFrame.frame:Raise()
+							end
+						end,
+					},
+					quickTip = {
+						type = 'description',
+						name = "\n|cffFFD700Quick Tip:|r Press |cffFFFFFFEnter|r to search, hover results for tooltips\n",
+						fontSize = "small",
+						order = 3,
+					},
+				},
 			},
-			separator3 = {
-				type = 'header',
-				name = "Usage Instructions",
-				order = 7,
+
+			-- Database Management Section
+			databaseSection = {
+				type = 'group',
+				inline = true,
+				name = "|TInterface\\Icons\\INV_Misc_Gear_01:20|t  Database Management",
+				order = 2,
+				args = {
+					dbDescription = {
+						type = 'description',
+						name = "|cffFFFFFFRebuild the spell database from WoW's spell library.|r\n\n" ..
+							   "|cffFFAA00Warning:|r Scans 70,000 spell IDs (takes 3-4 seconds)\n" ..
+							   "|cff888888Only needed if database corruption occurs or after major game patches.|r\n",
+						fontSize = "medium",
+						order = 1,
+					},
+					rebuild = {
+						type = 'execute',
+						name = "|cffFFAA00[REBUILD DATABASE]|r",
+						desc = "Perform a full database rebuild. This will scan all spell IDs and may cause a brief frame stutter.",
+						width = "full",
+						order = 2,
+						confirm = true,
+						confirmText = "This will scan 70,000 spell IDs and take 3-4 seconds. Continue?",
+						func = function()
+							SoundAlerter:RebuildSpellDatabase()
+						end,
+					},
+				},
 			},
-			instructions = {
+
+			-- Database Stats Section
+			statsSection = {
+				type = 'group',
+				inline = true,
+				name = "|TInterface\\Icons\\INV_Misc_Book_09:20|t  Database Statistics",
+				order = 3,
+				args = {
+					dbstats = {
+						type = 'description',
+						name = function()
+							local db = SoundAlerter.spellDatabase
+							local count = SoundAlerter:CountSpells()
+							local status = ""
+
+							-- Header with visual separator
+							status = status .. "|cff00D4FF━━━━━━━━━━━━━━━━━━━━━━━━━━━━|r\n"
+
+							if db.isBuilding then
+								-- Building state with progress bar
+								local progressBar = ""
+								local progressPercent = db.progress or 0
+								local filledBlocks = math.floor(progressPercent / 5)
+								for i = 1, 20 do
+									if i <= filledBlocks then
+										progressBar = progressBar .. "|cffFFAA00█|r"
+									else
+										progressBar = progressBar .. "|cff444444█|r"
+									end
+								end
+
+								status = status .. "|cffFFFFFF● Status:|r |cFFFFAA00BUILDING DATABASE|r\n"
+								status = status .. string.format("|cffFFFFFF● Progress:|r %.1f%% complete\n", progressPercent)
+								status = status .. "|cffFFFFFF● Visual:|r " .. progressBar .. "\n"
+								status = status .. string.format("|cffFFFFFF● Scanned:|r %s / 70,000 spell IDs\n",
+									string.format("%d", db.totalScanned):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+							else
+								-- Ready state with formatted numbers
+								local countFormatted = string.format("%d", count):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+
+								status = status .. "|cffFFFFFF● Status:|r |cFF00FF00READY|r |cff00FF00✓|r\n"
+								status = status .. string.format("|cffFFFFFF● Spells Indexed:|r |cffFFD700%s|r spells\n", countFormatted)
+
+								if db.lastUpdate and db.lastUpdate > 0 then
+									local age = time() - db.lastUpdate
+									local ageText
+									local ageColor = "|cff00FF00" -- Green for recent
+
+									if age < 60 then
+										ageText = "just now"
+										ageColor = "|cff00FF00"
+									elseif age < 3600 then
+										ageText = math.floor(age / 60) .. " minutes ago"
+										ageColor = "|cff88FF88"
+									elseif age < 86400 then
+										ageText = math.floor(age / 3600) .. " hours ago"
+										ageColor = "|cffFFD700"
+									else
+										ageText = math.floor(age / 86400) .. " days ago"
+										ageColor = "|cffFFAA00"
+									end
+									status = status .. string.format("|cffFFFFFF● Last Updated:|r %s%s|r\n", ageColor, ageText)
+								end
+							end
+
+							-- Memory estimate with color coding
+							local memKB = math.floor((count * 5 + #db.names * 25) / 1024)
+							local memColor = "|cff00FF00" -- Green
+							if memKB > 500 then
+								memColor = "|cffFFAA00" -- Orange for larger sizes
+							end
+							status = status .. string.format("|cffFFFFFF● Memory Usage:|r %s~%d KB|r\n", memColor, memKB)
+
+							-- Compatibility note
+							status = status .. "|cffFFFFFF● Compatibility:|r Retail + Ascension (11-prefix)\n"
+
+							-- Footer separator
+							status = status .. "|cff00D4FF━━━━━━━━━━━━━━━━━━━━━━━━━━━━|r\n"
+
+							return status
+						end,
+						fontSize = "medium",
+						order = 1,
+					},
+				},
+			},
+
+			-- Usage Guide Section
+			guideSection = {
+				type = 'group',
+				inline = true,
+				name = "|TInterface\\Icons\\INV_Misc_Note_01:20|t  Quick Start Guide",
+				order = 4,
+				args = {
+					guideIntro = {
+						type = 'description',
+						name = "|cffFFD700How to find and use spell IDs:|r\n",
+						fontSize = "medium",
+						order = 1,
+					},
+					step1 = {
+						type = 'description',
+						name = "|cff00D4FF[1]|r |cffFFFFFFClick|r |cffFFD700'Launch Spell Finder'|r |cffFFFFFFabove to open the search window|r\n",
+						order = 2,
+					},
+					step2 = {
+						type = 'description',
+						name = "|cff00D4FF[2]|r |cffFFFFFFType a spell name|r (e.g., 'Healing Touch', 'Polymorph', 'Cyclone')\n",
+						order = 3,
+					},
+					step3 = {
+						type = 'description',
+						name = "|cff00D4FF[3]|r |cffFFFFFF(Optional)|r Filter by rank number to narrow results\n",
+						order = 4,
+					},
+					step4 = {
+						type = 'description',
+						name = "|cff00D4FF[4]|r |cffFFFFFFPress|r |cffFFD700Enter|r |cffFFFFFF or click Search to display results|r\n",
+						order = 5,
+					},
+					step5 = {
+						type = 'description',
+						name = "|cff00D4FF[5]|r |cffFFFFFFHover over results to see detailed spell tooltips|r\n",
+						order = 6,
+					},
+					step6 = {
+						type = 'description',
+						name = "|cff00D4FF[6]|r |cffFFFFFFCopy the spell ID and add it to|r |cffFFD700spellist.lua|r\n",
+						order = 7,
+					},
+					proTips = {
+						type = 'description',
+						name = "\n|cffFFD700Pro Tips:|r\n" ..
+							   "|cff888888• Database shows both retail IDs (e.g., 51514) and Ascension IDs (1151514)|r\n" ..
+							   "|cff888888• Partial spell names work (e.g., 'Poly' finds all Polymorph variants)|r\n" ..
+							   "|cff888888• Results are sorted by spell ID for easy browsing|r\n" ..
+							   "|cff888888• Tooltip previews help verify you found the correct spell|r\n",
+						fontSize = "small",
+						order = 8,
+					},
+				},
+			},
+
+			-- Footer
+			footer = {
 				type = 'description',
-				name = "How to use:\n" ..
-					   "1. Click 'Open Spell Finder Window' above\n" ..
-					   "2. Type a spell name (e.g., 'Healing Touch' or 'Poly')\n" ..
-					   "3. Optionally filter by rank number\n" ..
-					   "4. Click Search or press Enter\n" ..
-					   "5. Hover over results to see spell tooltips\n" ..
-					   "6. Copy the spell ID to add to spellist.lua\n\n" ..
-					   "The database shows both retail and Ascension (11-prefixed) spell IDs.",
-				fontSize = "medium",
-				order = 8,
+				name = "\n|cff00D4FF━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━|r\n" ..
+					   "|cff888888Developer Tools v1.0 | SoundAlerter Addon Framework|r\n" ..
+					   "|cff00D4FF━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━|r\n",
+				fontSize = "small",
+				order = 10,
 			},
 		}
 	})
