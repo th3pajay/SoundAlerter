@@ -10,7 +10,7 @@
 ---
 ## ✨ Experimental Features
 
-* **Battleground Alerts:** **Now supports CTF** alerts (WSG, EOTS) in BG zones.
+* **Battleground Alerts:** **Now supports CTF** alerts (WSG, EOTS) in BG zones. 
   * Choose toast background textures.
   * Toggle rainbow edge colors for flair.
   * Toast backgrounds are based on team assignment (green / red).
