@@ -1,32 +1,57 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
-![Version](https://img.shields.io/badge/version-1.3.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+![Version](https://img.shields.io/badge/version-1.3.31-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
 <p align="center">
 <img src="Media/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
 
-**Never miss Cyclone, Divine Shield, or enemy cooldowns again.** SoundAlerter provides real-time, high-priority audio and visual cues to give you the competitive edge in World of Warcraft PvP.
+**Never miss critical enemy cooldowns again.**  SoundAlerter provides real-time, high-priority audio and visual cues to give you the competitive edge in World of Warcraft PvP.
 
 ---
 ## ✨ Experimental Features
 
-* **Sticky Toasts:** **Hover** over to stop in-frame countdown of toast fade-out. Toggle rainbow edge colors for flair.
+* **Battleground Alerts:** **Now supports CTF** alerts (WSG, EOTS) in BG zones.
+  * Choose toast background textures.
+  * Toggle rainbow edge colors for flair.
+  * Toast backgrounds are based on team assignment (green / red).
+* ***Battleground alerts are based upon mixed-faction team compositions identified over time. As the battle goes on GUID list with enemy names and classes is added to the list. 
+Alerts will either successfully identify classes or in case not yet seen players, in 'ramp-up' will only alert for 'enemy' flag alerts.***
+
+<p align="center">
+<img src="Media/toast_bg_flagpickup.gif?raw=true" alt="BG Flag Alerts" width="256"/>
+</p>
+
+* **Sticky Toasts:** **Hover** over to stop in-frame countdown of toast fade-out.
+  * Toggle rainbow edge colors for flair.
 
 <p align="center">
 <img src="Media/toast_sticky.gif?raw=true" alt="Sticky Toast" width="256"/>
 </p>
 
-* **Proximity Alerts:** Reorganized options menu.
+* **Proximity Alerts:** Reorganized, aligned menu options.
+  * Dual pool system for secure button actions between anda cross combat and non-combat situations.
+  * ***Keeping clickable actions on toasts presented a unique challenge for combat scenarios, where WoW UI prevents those actions altogether. 
+  We have a dual pooled toast system for both combat and non-combat toasts and in-between, but further fine-tuning might be needed.***
+
+
 * **Find Spell - Upgraded looks:** **Follow along** the spell list database progress bar as you rebuild.
 
 <p align="center">
-<img src="Media/findspell.png?raw=true" alt="Sticky Toast" width="256"/>
+<img src="Media/find_spell_db_progress.gif?raw=true" alt="Find Spell" width="256"/>
 </p>
 
+* **New minimap button:** Proximity and background alerts can be toggled by Shift or Ctrl, resulting in their owm minimap icon.
 
-## ✨ Key Features & Functionality
+<p align="center">
+<img src="Media/minimap_anim.gif?raw=true" alt="Minimap Anim" width="32"/>
+</p>
 
-### 🗣️ Combat & Alert System
+## ⛓️‍💥 Fixes
+* **sadb.chatgroups were not respecting channel outputs (/s Stealth on enemy etc.):** Now properly respecting channel output configurations.
+
+## 🧩 Key Features & Functionality
+
+### ⚔️ Combat & Alert System
 * **Voice Alerts:** Hear **450+ critical spell callouts**, logically organized by intent (defensives, Crowd Control (CC), interrupts, cooldowns).
 * **Proximity Alerts:** Receive **prominent visual toasts** or **audible alerts** for nearby enemies. **Click toasts to instantly target enemies** or **Shift-click to set focus** (World PvP only). Customize the detection threshold and output.
 * **Chat Integration:** **Auto-announce critical spells** (CC, interrupts, cooldowns) to your teammates via Party, Raid, or Battleground chat channels.
@@ -44,7 +69,7 @@
 ---
 
 
-## 🛠️ Getting Started
+## 🏃 Getting Started
 
 ### Installation
 1.  **Download** the latest release.
@@ -58,7 +83,7 @@
 
 ---
 
-## 🚀 Advanced Usage
+## 🔨 Advanced Usage
 
 | Feature | Tab Location | Description |
 | :--- | :--- | :--- |

@@ -86,80 +86,336 @@ local BUTTON_TEXTURE = "Interface\\ICONS\\ability_warrior_battleshout"
 function SoundAlerter:CreateMinimapButton()
     local db = sadb
     local buttonSize = 24
-    local iconSize = 24 
+    local iconSize = 24
     local initialX = 5
     local initialY = -5
-    
+
+    -- Create main button frame
     SoundAlerterMinimapButton = CreateFrame("Button", "SoundAlerterMinimapButton", Minimap)
     SoundAlerterMinimapButton:SetSize(buttonSize, buttonSize)
-
-    SoundAlerterMinimapButton:SetNormalTexture("")
-    SoundAlerterMinimapButton:SetPushedTexture("")
-    
-    SoundAlerterMinimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-    SoundAlerterMinimapButton:GetHighlightTexture():SetDesaturated(true)
-    SoundAlerterMinimapButton:GetHighlightTexture():SetBlendMode("ADD")
-    
-    local icon = SoundAlerterMinimapButton:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture(BUTTON_TEXTURE)
-    icon:SetSize(iconSize, iconSize) 
-    icon:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
-    
-    local border = SoundAlerterMinimapButton:CreateTexture(nil, "OVERLAY")
-    border:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
-    border:SetSize(iconSize, iconSize) 
-    border:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
-    border:SetVertexColor(1.0, 1.0, 1.0)
-    
     SoundAlerterMinimapButton:SetFrameStrata("MEDIUM")
     SoundAlerterMinimapButton:SetMovable(true)
     SoundAlerterMinimapButton:EnableMouse(true)
     SoundAlerterMinimapButton:RegisterForDrag("LeftButton")
 
-    SoundAlerterMinimapButton:SetScript("OnClick", function(self, button)
-        if button == "LeftButton" or button == "RightButton" then
-            SoundAlerter:ShowConfig() 
-        end
-    end)
-    
+    -- Icon texture (main visual element)
+    local icon = SoundAlerterMinimapButton:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(BUTTON_TEXTURE)
+    icon:SetSize(iconSize, iconSize)
+    icon:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
+    icon:SetVertexColor(0.5, 1.0, 1.0)  -- Cyan tint
+    SoundAlerterMinimapButton.icon = icon
+
+    -- Border (clean button border without tracking indicator)
+    local border = SoundAlerterMinimapButton:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
+    border:SetSize(iconSize + 4, iconSize + 4)
+    border:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
+    border:SetVertexColor(0.5, 0.5, 0.5, 0.8)  -- Subtle gray
+    SoundAlerterMinimapButton.border = border
+
+    -- Highlight glow (hover effect)
+    local highlight = SoundAlerterMinimapButton:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetSize(iconSize, iconSize)
+    highlight:SetPoint("CENTER", SoundAlerterMinimapButton, "CENTER", 0, 0)
+    highlight:SetBlendMode("ADD")
+    highlight:SetVertexColor(0.0, 0.8, 0.8)  -- Cyan glow
+    highlight:SetAlpha(0)
+    SoundAlerterMinimapButton.highlight = highlight
+
+    -- Create animation groups
+    self:CreateMinimapButtonAnimations()
+
+    -- Event handlers
     SoundAlerterMinimapButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("SoundAlerter")
-        GameTooltip:AddLine("Click to open/close options. (Drag to move)")
-        GameTooltip:Show()
+        SoundAlerter:MinimapButton_OnEnter(self)
     end)
-    
+
     SoundAlerterMinimapButton:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
+        SoundAlerter:MinimapButton_OnLeave(self)
+    end)
+
+    SoundAlerterMinimapButton:SetScript("OnMouseDown", function(self, button)
+        SoundAlerter:MinimapButton_OnMouseDown(self, button)
+    end)
+
+    SoundAlerterMinimapButton:SetScript("OnMouseUp", function(self, button)
+        SoundAlerter:MinimapButton_OnMouseUp(self, button)
+    end)
+
+    SoundAlerterMinimapButton:SetScript("OnClick", function(self, button)
+        SoundAlerter:MinimapButton_OnClick(self, button)
     end)
 
     SoundAlerterMinimapButton:SetScript("OnDragStart", function(self)
-        self:StartMoving()
+        SoundAlerter:MinimapButton_OnDragStart(self)
     end)
 
     SoundAlerterMinimapButton:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local minimapX, minimapY = Minimap:GetCenter()
-        local buttonX, buttonY = self:GetCenter()
-        
-        db.MinimapButtonPosition = {
-            x = buttonX - minimapX,
-            y = buttonY - minimapY,
-        }
+        SoundAlerter:MinimapButton_OnDragStop(self)
     end)
 
+    -- Position
     if db.MinimapButtonPosition then
         SoundAlerterMinimapButton:ClearAllPoints()
-        SoundAlerterMinimapButton:SetPoint("CENTER", Minimap, "CENTER", db.MinimapButtonPosition.x, db.MinimapButtonPosition.y)
+        SoundAlerterMinimapButton:SetPoint("CENTER", Minimap, "CENTER",
+            db.MinimapButtonPosition.x, db.MinimapButtonPosition.y)
     else
         SoundAlerterMinimapButton:SetPoint("TOPLEFT", Minimap, "TOPLEFT", initialX, initialY)
     end
-    
+
+    -- Visibility
     if db.MinimapButtonHidden then
         SoundAlerterMinimapButton:Hide()
     else
         SoundAlerterMinimapButton:Show()
     end
+
+    -- Set initial icon based on current settings
+    self:UpdateMinimapButtonIcon()
+end
+
+function SoundAlerter:CreateMinimapButtonAnimations()
+    local button = SoundAlerterMinimapButton
+    if not button then return end
+
+    -- Hover scale-up animation
+    button.hoverAnimGroup = button:CreateAnimationGroup()
+    button.hoverAnimGroup:SetLooping("NONE")
+
+    local hoverScale = button.hoverAnimGroup:CreateAnimation("Scale")
+    hoverScale:SetScale(1.05, 1.05)
+    hoverScale:SetDuration(0.15)
+    hoverScale:SetSmoothing("OUT")
+
+    -- Unhover scale-down animation
+    button.unhoverAnimGroup = button:CreateAnimationGroup()
+    button.unhoverAnimGroup:SetLooping("NONE")
+
+    local unhoverScale = button.unhoverAnimGroup:CreateAnimation("Scale")
+    unhoverScale:SetScale(0.952, 0.952)  -- 1/1.05 ≈ 0.952
+    unhoverScale:SetDuration(0.15)
+    unhoverScale:SetSmoothing("OUT")
+
+    -- Press scale-down animation
+    button.pressAnimGroup = button:CreateAnimationGroup()
+    button.pressAnimGroup:SetLooping("NONE")
+
+    local pressScale = button.pressAnimGroup:CreateAnimation("Scale")
+    pressScale:SetScale(0.905, 0.905)  -- 0.95/1.05 ≈ 0.905
+    pressScale:SetDuration(0.05)
+
+    -- Release scale-up animation
+    button.releaseAnimGroup = button:CreateAnimationGroup()
+    button.releaseAnimGroup:SetLooping("NONE")
+
+    local releaseScale = button.releaseAnimGroup:CreateAnimation("Scale")
+    releaseScale:SetScale(1.105, 1.105)  -- 1.05/0.95 ≈ 1.105
+    releaseScale:SetDuration(0.1)
+    releaseScale:SetSmoothing("OUT")
+end
+
+function SoundAlerter:MinimapButton_OnEnter(self)
+    -- Tooltip
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:AddLine("SoundAlerter")
+    GameTooltip:AddLine("Click: Options", 1, 1, 1)
+    GameTooltip:AddLine("Shift+Click: Toggle Proximity", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Ctrl+Click: Toggle Battleground", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Drag to move", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+
+    -- Hover animation
+    if SoundAlerterMinimapButton.hoverAnimGroup then
+        SoundAlerterMinimapButton.unhoverAnimGroup:Stop()
+        SoundAlerterMinimapButton.hoverAnimGroup:Play()
+    end
+
+    -- Border color transition to cyan
+    if SoundAlerterMinimapButton.border then
+        SoundAlerterMinimapButton.border:SetVertexColor(0.0, 0.8, 0.8, 1.0)
+    end
+
+    -- Glow fade in
+    local highlight = SoundAlerterMinimapButton.highlight
+    if highlight then
+        UIFrameFadeIn(highlight, 0.15, highlight:GetAlpha(), 0.3)
+    end
+end
+
+function SoundAlerter:MinimapButton_OnLeave(self)
+    -- Hide tooltip
+    GameTooltip:Hide()
+
+    -- Unhover animation
+    if SoundAlerterMinimapButton.unhoverAnimGroup then
+        SoundAlerterMinimapButton.hoverAnimGroup:Stop()
+        SoundAlerterMinimapButton.unhoverAnimGroup:Play()
+    end
+
+    -- Border color transition to gray
+    if SoundAlerterMinimapButton.border then
+        SoundAlerterMinimapButton.border:SetVertexColor(0.5, 0.5, 0.5, 0.8)
+    end
+
+    -- Glow fade out
+    local highlight = SoundAlerterMinimapButton.highlight
+    if highlight then
+        UIFrameFadeOut(highlight, 0.15, highlight:GetAlpha(), 0)
+    end
+end
+
+function SoundAlerter:MinimapButton_OnMouseDown(self, button)
+    if button ~= "LeftButton" and button ~= "RightButton" then
+        return
+    end
+
+    -- Capture modifier state early (before they're released)
+    SoundAlerterMinimapButton.pendingShift = IsShiftKeyDown()
+    SoundAlerterMinimapButton.pendingCtrl = IsControlKeyDown()
+
+    -- Press animation
+    if SoundAlerterMinimapButton.pressAnimGroup then
+        SoundAlerterMinimapButton.releaseAnimGroup:Stop()
+        SoundAlerterMinimapButton.pressAnimGroup:Play()
+    end
+
+    -- Icon dim
+    if SoundAlerterMinimapButton.icon then
+        SoundAlerterMinimapButton.icon:SetVertexColor(0.425, 0.85, 0.85)  -- 85% of cyan
+    end
+
+    -- Border flash white
+    if SoundAlerterMinimapButton.border then
+        SoundAlerterMinimapButton.border:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+    end
+
+    -- Position shift (depress effect)
+    local point, relativeTo, relativePoint, xOfs, yOfs = SoundAlerterMinimapButton:GetPoint(1)
+    SoundAlerterMinimapButton.originalOffset = {point, relativeTo, relativePoint, xOfs, yOfs}
+    SoundAlerterMinimapButton:ClearAllPoints()
+    SoundAlerterMinimapButton:SetPoint(point, relativeTo, relativePoint, xOfs + 1, yOfs - 1)
+end
+
+function SoundAlerter:MinimapButton_OnMouseUp(self, button)
+    if button ~= "LeftButton" and button ~= "RightButton" then
+        return
+    end
+
+    -- Release animation
+    if SoundAlerterMinimapButton.releaseAnimGroup then
+        SoundAlerterMinimapButton.pressAnimGroup:Stop()
+        SoundAlerterMinimapButton.releaseAnimGroup:Play()
+    end
+
+    -- Icon brighten
+    if SoundAlerterMinimapButton.icon then
+        SoundAlerterMinimapButton.icon:SetVertexColor(0.5, 1.0, 1.0)  -- Full cyan
+    end
+
+    -- Border fade to cyan (animate over 0.15s)
+    if SoundAlerterMinimapButton.border then
+        local startTime = GetTime()
+        local duration = 0.15
+        local startR, startG, startB = 1.0, 1.0, 1.0
+        local endR, endG, endB = 0.0, 0.8, 0.8
+
+        SoundAlerterMinimapButton.borderFadeFrame = SoundAlerterMinimapButton.borderFadeFrame or CreateFrame("Frame")
+        SoundAlerterMinimapButton.borderFadeFrame:SetScript("OnUpdate", function(fadeFrame, elapsed)
+            local progress = (GetTime() - startTime) / duration
+            if progress >= 1.0 then
+                SoundAlerterMinimapButton.border:SetVertexColor(endR, endG, endB, 1.0)
+                fadeFrame:SetScript("OnUpdate", nil)
+            else
+                local r = startR + (endR - startR) * progress
+                local g = startG + (endG - startG) * progress
+                local b = startB + (endB - startB) * progress
+                SoundAlerterMinimapButton.border:SetVertexColor(r, g, b, 1.0)
+            end
+        end)
+    end
+
+    -- Position reset
+    if SoundAlerterMinimapButton.originalOffset then
+        local point, relativeTo, relativePoint, xOfs, yOfs = unpack(SoundAlerterMinimapButton.originalOffset)
+        SoundAlerterMinimapButton:ClearAllPoints()
+        SoundAlerterMinimapButton:SetPoint(point, relativeTo, relativePoint, xOfs, yOfs)
+        SoundAlerterMinimapButton.originalOffset = nil
+    end
+end
+
+function SoundAlerter:UpdateMinimapButtonIcon()
+    if not SoundAlerterMinimapButton or not SoundAlerterMinimapButton.icon then return end
+
+    local proximityOn = sadb.proximityEnabled
+    local battlegroundOn = sadb.battlegroundAlertsEnabled
+    local icon = SoundAlerterMinimapButton.icon
+
+    if proximityOn and battlegroundOn then
+        -- State 4: Both enabled - Sword with burst (full combat mode)
+        icon:SetTexture("Interface\\ICONS\\Ability_Warrior_VictoryRush")
+    elseif proximityOn and not battlegroundOn then
+        -- State 2: Proximity only - Hunter tracking/detection
+        icon:SetTexture("Interface\\ICONS\\Ability_Hunter_SniperShot")
+    elseif not proximityOn and battlegroundOn then
+        -- State 3: Battleground only - Banner
+        icon:SetTexture("Interface\\ICONS\\INV_Banner_02")
+    else
+        -- State 1: Both disabled - Default battle shout
+        icon:SetTexture("Interface\\ICONS\\ability_warrior_battleshout")
+    end
+
+    -- Maintain cyan tint across all states
+    icon:SetVertexColor(0.5, 1.0, 1.0)
+end
+
+function SoundAlerter:MinimapButton_OnClick(self, button)
+    if button == "LeftButton" then
+        -- Use captured modifier state from OnMouseDown
+        local wasShift = SoundAlerterMinimapButton.pendingShift
+        local wasCtrl = SoundAlerterMinimapButton.pendingCtrl
+
+        -- Clear captured state
+        SoundAlerterMinimapButton.pendingShift = false
+        SoundAlerterMinimapButton.pendingCtrl = false
+
+        if wasShift then
+            -- Toggle proximity alerts
+            sadb.proximityEnabled = not sadb.proximityEnabled
+            local status = sadb.proximityEnabled and "|cff00FF00ON|r" or "|cffFF0000OFF|r"
+            SoundAlerter:Print("Proximity Alerts: " .. status)
+            -- Delay icon update slightly to let animation finish
+            SoundAlerter:ScheduleTimer("UpdateMinimapButtonIcon", 0.05)
+        elseif wasCtrl then
+            -- Toggle battleground alerts
+            sadb.battlegroundAlertsEnabled = not sadb.battlegroundAlertsEnabled
+            local status = sadb.battlegroundAlertsEnabled and "|cff00FF00ON|r" or "|cffFF0000OFF|r"
+            SoundAlerter:Print("Battleground Alerts: " .. status)
+            -- Delay icon update slightly to let animation finish
+            SoundAlerter:ScheduleTimer("UpdateMinimapButtonIcon", 0.05)
+        else
+            -- Normal click - open options
+            SoundAlerter:ShowConfig()
+        end
+    elseif button == "RightButton" then
+        SoundAlerter:ShowConfig()
+    end
+end
+
+function SoundAlerter:MinimapButton_OnDragStart(self)
+    self:StartMoving()
+end
+
+function SoundAlerter:MinimapButton_OnDragStop(self)
+    self:StopMovingOrSizing()
+    local minimapX, minimapY = Minimap:GetCenter()
+    local buttonX, buttonY = self:GetCenter()
+
+    sadb.MinimapButtonPosition = {
+        x = buttonX - minimapX,
+        y = buttonY - minimapY,
+    }
 end
 
 function SoundAlerter:OnInitialize()
@@ -572,7 +828,14 @@ function SoundAlerter:HandleAuraApplied(sourceGUID, sourceName, destGUID, destNa
             if not sadb.chatalerts then
                 if (((spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapenemy) or (spellID == 2094 and sadb.blindenemy) or (spellID == 33786 and sadb.cycloneenemy) or (spellID == 51514 and sadb.hexenemy) or (spellID == 5782 and sadb.fearenemy)) then
                     local ccenemychat = gsub(sadb.enemychat, "(#spell#)", GetSpellLink(spellID))
-                    SendChatMessage(gsub(ccenemychat, "(#enemy#)", destName), sadb.chatgroup, nil, nil)
+                    local message = gsub(ccenemychat, "(#enemy#)", destName)
+                    if not sadb.chatgroups.NONE then
+                        for channel, enabled in pairs(sadb.chatgroups) do
+                            if enabled and channel ~= "NONE" then
+                                SendChatMessage(message, channel, nil, nil)
+                            end
+                        end
+                    end
                 end
             end
         elseif (sourcetype[COMBATLOG_FILTER_FRIENDLY_UNITS] and (destuid.target or destuid.focus) and not sadb.dArenaPartner) then
@@ -583,16 +846,30 @@ function SoundAlerter:HandleAuraApplied(sourceGUID, sourceName, destGUID, destNa
     elseif desttype[COMBATLOG_FILTER_ME] then
         if not sadb.chatalerts then
             if sourcetype[COMBATLOG_FILTER_HOSTILE_PLAYERS] or ((spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend) then
-                if ((spellID == 51514 and sadb.hexselffriend) or 
-                    (spellID == 33786 and sadb.cycloneselffriend) or 
+                if ((spellID == 51514 and sadb.hexselffriend) or
+                    (spellID == 33786 and sadb.cycloneselffriend) or
                     ((spellID == 6215 or spellID == 17928 or spellID == 5484) and sadb.fearselffriend) or
                     ((spellID == 12826 or spellID == 118 or spellID == 28271 or spellID == 28272) and sadb.polyenemy) or
                     (spellID == 2094 and sadb.blindselffriend)) then
                         local form1 = gsub(sadb.selfchat, "(#spell#)", GetSpellLink(spellID))
                         local form2 = gsub(form1, "(#target#)", "me")
-                        SendChatMessage(gsub(form2, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+                        local message = gsub(form2, "(#enemy#)", sourceName)
+                        if not sadb.chatgroups.NONE then
+                            for channel, enabled in pairs(sadb.chatgroups) do
+                                if enabled and channel ~= "NONE" then
+                                    SendChatMessage(message, channel, nil, nil)
+                                end
+                            end
+                        end
                 elseif (spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend then
-                        SendChatMessage(gsub(sadb.sapselftext, "(#spell#)", GetSpellLink(spellID)), sadb.chatgroup, nil, nil)
+                        local message = gsub(sadb.sapselftext, "(#spell#)", GetSpellLink(spellID))
+                        if not sadb.chatgroups.NONE then
+                            for channel, enabled in pairs(sadb.chatgroups) do
+                                if enabled and channel ~= "NONE" then
+                                    SendChatMessage(message, channel, nil, nil)
+                                end
+                            end
+                        end
                 end
             end
         end
@@ -603,16 +880,30 @@ function SoundAlerter:HandleAuraApplied(sourceGUID, sourceName, destGUID, destNa
         if (not sadb.chatalerts and not desttype[COMBATLOG_FILTER_ME] and (destuid.target or destuid.focus or (currentZoneType == "arena" or pvpType == "arena"))) then
             if (spellID == 6770 or spellID == 11297 or spellID == 51724) and sadb.sapselffriend then
                 local sapfriendtext = gsub(sadb.sapfriendtext, "(#spell#)", GetSpellLink(spellID))
-                SendChatMessage(gsub(sapfriendtext, "(#friend#)", destName), sadb.chatgroup, nil, nil)
-            elseif ((spellID == 51514 and sadb.hexselffriend) or 
-                (spellID == 642 and sadb.bubbleselffriend) or 
-                (spellID == 33786 and sadb.cycloneselffriend) or 
+                local message = gsub(sapfriendtext, "(#friend#)", destName)
+                if not sadb.chatgroups.NONE then
+                    for channel, enabled in pairs(sadb.chatgroups) do
+                        if enabled and channel ~= "NONE" then
+                            SendChatMessage(message, channel, nil, nil)
+                        end
+                    end
+                end
+            elseif ((spellID == 51514 and sadb.hexselffriend) or
+                (spellID == 642 and sadb.bubbleselffriend) or
+                (spellID == 33786 and sadb.cycloneselffriend) or
                 ((spellID == 6215 or spellID == 17928 or spellID == 5484) and sadb.fearselffriend) or
                 ((spellID == 12826 or spellID == 118 or spellID == 28271 or spellID == 28272) and sadb.polyenemy) or
                 (spellID == 2094 and sadb.blindselffriend)) then
                     local form1 = gsub(sadb.friendchat, "(#spell#)", GetSpellLink(spellID))
                     local form2 = gsub(form1, "(#friend#)", destName)
-                    SendChatMessage(gsub(form2, "(#enemy#)", sourceName), sadb.chatgroup, nil, nil)
+                    local message = gsub(form2, "(#enemy#)", sourceName)
+                    if not sadb.chatgroups.NONE then
+                        for channel, enabled in pairs(sadb.chatgroups) do
+                            if enabled and channel ~= "NONE" then
+                                SendChatMessage(message, channel, nil, nil)
+                            end
+                        end
+                    end
             end
         end
     end
@@ -660,7 +951,14 @@ function SoundAlerter:HandleCastSuccess(sourceGUID, sourceName, destName, spellI
                 and
                 ( (sourceuid.target or sourceuid.focus) or ((sadb.vanishTF and isVanish) or (sadb.stealthTF and isStealth) or (sadb.prowlTF and isProwl)) )
             ) then
-                SendChatMessage(gsub(gsub(sadb.enemychat,"(#spell#)", GetSpellLink(spellID)),"(#enemy#)", sourceName),sadb.chatgroup,nil,nil)
+                local message = gsub(gsub(sadb.enemychat,"(#spell#)", GetSpellLink(spellID)),"(#enemy#)", sourceName)
+                if not sadb.chatgroups.NONE then
+                    for channel, enabled in pairs(sadb.chatgroups) do
+                        if enabled and channel ~= "NONE" then
+                            SendChatMessage(message, channel, nil, nil)
+                        end
+                    end
+                end
             end
         end
         
