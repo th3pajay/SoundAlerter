@@ -635,12 +635,12 @@ function SoundAlerter:OnOptionsCreate()
 			},
 
 			-- ===========================
-			-- SECTION 3: TOAST APPEARANCE
+			-- SECTION 3: VISUAL ALERTS
 			-- ===========================
 			toastAppearance = {
 				type = 'group',
 				inline = true,
-				name = "3. Toast Appearance",
+				name = "3. Visual Alerts",
 				desc = "Customize the visual style of toast notifications",
 				set = setOption,
 				get = getOption,
@@ -848,28 +848,499 @@ function SoundAlerter:OnOptionsCreate()
 					},
 				},
 			},
+		},
+	})
+
+	-- ===========================
+	-- BATTLEGROUND ALERTS TAB
+	-- ===========================
+	self:AddOption('BattlegroundAlerts', {
+		type = 'group',
+		name = "Battleground Alerts",
+		desc = "Track battlefield objectives: flag pickups, captures, base assaults, and more.",
+		order = 2.7,
+		args = {
+			-- ===========================
+			-- INTRODUCTION DESCRIPTION
+			-- ===========================
+			description = {
+				type = 'description',
+				name = "|cffFFD700Battleground Alerts|r track objective events in battlegrounds.\n\n" ..
+				       "|cffFFFFFFSupported Battlegrounds:|r\n" ..
+				       "• Warsong Gulch (flag pickups, drops, captures)\n" ..
+				       "• Eye of the Storm (flag events)\n" ..
+				       "• Arathi Basin (base assaults, captures) - |cff808080Coming Soon|r\n" ..
+				       "• Alterac Valley (towers, graveyards) - |cff808080Coming Soon|r\n\n" ..
+				       "|cffFF0000Note:|r These alerts only work in battlegrounds.\n",
+				fontSize = "medium",
+				order = 1,
+			},
 
 			-- ===========================
-			-- SECTION 6: FUTURE FEATURES
+			-- SECTION 1: BASIC SETUP
 			-- ===========================
-			futureFeatures = {
+			enableGroup = {
 				type = 'group',
 				inline = true,
-				name = "6. Future Features (Placeholder)",
+				name = "1. Basic Setup",
+				order = 2,
+				args = {
+					battlegroundAlertsEnabled = {
+						type = 'toggle',
+						name = "Enable Battleground Alerts",
+						desc = "Master toggle for all battlefield objective alerts. Enable this first to activate all battleground features.",
+						get = function() return sadb.battlegroundAlertsEnabled end,
+						set = function(_, val)
+							sadb.battlegroundAlertsEnabled = val
+							if SoundAlerter.FlagAlerts then
+								if val then
+									SoundAlerter.FlagAlerts:OnEnable()
+								else
+									SoundAlerter.FlagAlerts:OnDisable()
+								end
+							else
+								SoundAlerter:Print("|cffFF0000Error: FlagAlerts module not loaded. Try /reload|r")
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 2: FLAG EVENTS
+			-- ===========================
+			flagAlerts = {
+				type = 'group',
+				inline = true,
+				name = "2. Flag Events (WSG, EOTS)",
+				desc = "Audio alerts for flag pickups, drops, and captures",
+				order = 3,
+				args = {
+					flagPickupAudio = {
+						type = 'toggle',
+						name = "Flag Pickups",
+						desc = "Alert when a player picks up a flag (e.g., 'Rogue picked up flag')",
+						get = function() return sadb.flagPickupAudio end,
+						set = function(_, val) sadb.flagPickupAudio = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 1,
+					},
+					flagDropAudio = {
+						type = 'toggle',
+						name = "Flag Drops",
+						desc = "Alert when a flag is dropped",
+						get = function() return sadb.flagDropAudio end,
+						set = function(_, val) sadb.flagDropAudio = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 2,
+					},
+					flagCaptureAudio = {
+						type = 'toggle',
+						name = "Flag Captures",
+						desc = "Alert when a flag is captured",
+						get = function() return sadb.flagCaptureAudio end,
+						set = function(_, val) sadb.flagCaptureAudio = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 3,
+					},
+					flagReturnAudio = {
+						type = 'toggle',
+						name = "Flag Returns",
+						desc = "Alert when a flag is returned to base",
+						get = function() return sadb.flagReturnAudio end,
+						set = function(_, val) sadb.flagReturnAudio = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 4,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 3: VISUAL ALERTS
+			-- ===========================
+			toastIntegration = {
+				type = 'group',
+				inline = true,
+				name = "3. Visual Alerts",
+				desc = "Show toast notifications for flag events",
+				order = 4,
+				args = {
+					flagToastsEnabled = {
+						type = 'toggle',
+						name = "Show Toast Notifications",
+						desc = "Display visual toasts for flag carriers (uses proximity toast settings for appearance)",
+						get = function() return sadb.flagToastsEnabled end,
+						set = function(_, val) sadb.flagToastsEnabled = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 1,
+					},
+					rainbowBorder = {
+						type = 'toggle',
+						name = "Rainbow Border on Toasts",
+						desc = "Animated rainbow-colored border effect on toast notifications (shared with Proximity Alerts)",
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 2,
+						set = function(info, value)
+							sadb.proximityToasts.rainbowBorder = value
+						end,
+						get = function(info)
+							return sadb.proximityToasts.rainbowBorder
+						end,
+					},
+					spacer1 = {
+						type = 'description',
+						name = " ",
+						order = 3,
+					},
+					-- Team-based background colors
+					flagTeamBackgroundColors = {
+						type = 'toggle',
+						name = "Team-based Background Colors",
+						desc = "Enable color-coded backgrounds for flag alerts:\n" ..
+						       "|cffFF5555• Red transparent background|r = Enemy team flag carrier\n" ..
+						       "|cff55FF55• Green transparent background|r = Friendly team flag carrier\n\n" ..
+						       "This helps you quickly identify which team picked up the flag without reading the toast.",
+						get = function() return sadb.flagTeamBackgroundColors end,
+						set = function(_, val) sadb.flagTeamBackgroundColors = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled or not sadb.flagToastsEnabled end,
+						width = "full",
+						order = 4,
+					},
+					flagEnemyRedBackground = {
+						type = 'toggle',
+						name = "  Enemy Team: Red Background",
+						desc = "Show a red transparent background when an enemy team member picks up the flag. " ..
+						       "This provides instant visual recognition of threats.",
+						get = function() return sadb.flagEnemyRedBackground end,
+						set = function(_, val) sadb.flagEnemyRedBackground = val end,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled or
+							       not sadb.flagTeamBackgroundColors
+						end,
+						width = "full",
+						order = 5,
+					},
+					flagFriendlyGreenBackground = {
+						type = 'toggle',
+						name = "  Friendly Team: Green Background",
+						desc = "Show a green transparent background when a friendly team member picks up the flag. " ..
+						       "Useful for tracking your team's flag carrier.",
+						get = function() return sadb.flagFriendlyGreenBackground end,
+						set = function(_, val) sadb.flagFriendlyGreenBackground = val end,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled or
+							       not sadb.flagTeamBackgroundColors
+						end,
+						width = "full",
+						order = 6,
+					},
+					flagEnemyTexture = {
+						type = 'select',
+						name = "  Enemy Team: Background Texture",
+						desc = "Select the background texture pattern for enemy flag carrier toasts.\n\n" ..
+						       "• |cffFFFFFFSolid|r - Clean, simple background (default)\n" ..
+						       "• |cffFFFFFFDialog Box|r - Standard dialog texture\n" ..
+						       "• |cffFFFFFFRock|r - Rough stone texture\n" ..
+						       "• |cffFFFFFFMarble|r - Smooth marble texture\n\n" ..
+						       "Texture is combined with the red color to help distinguish enemy flag carriers.",
+						values = {
+							["Solid"] = "Solid (Default)",
+							["DialogBox"] = "Dialog Box",
+							["Rock"] = "Rock",
+							["Marble"] = "Marble",
+						},
+						get = function() return sadb.flagEnemyTexture or "Solid" end,
+						set = function(_, val) sadb.flagEnemyTexture = val end,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled or
+							       not sadb.flagTeamBackgroundColors
+						end,
+						width = "full",
+						order = 6.5,
+					},
+					flagFriendlyTexture = {
+						type = 'select',
+						name = "  Friendly Team: Background Texture",
+						desc = "Select the background texture pattern for friendly flag carrier toasts.\n\n" ..
+						       "• |cffFFFFFFSolid|r - Clean, simple background (default)\n" ..
+						       "• |cffFFFFFFDialog Box|r - Standard dialog texture\n" ..
+						       "• |cffFFFFFFRock|r - Rough stone texture\n" ..
+						       "• |cffFFFFFFMarble|r - Smooth marble texture\n\n" ..
+						       "Texture is combined with the green color to help identify friendly flag carriers.",
+						values = {
+							["Solid"] = "Solid (Default)",
+							["DialogBox"] = "Dialog Box",
+							["Rock"] = "Rock",
+							["Marble"] = "Marble",
+						},
+						get = function() return sadb.flagFriendlyTexture or "Solid" end,
+						set = function(_, val) sadb.flagFriendlyTexture = val end,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled or
+							       not sadb.flagTeamBackgroundColors
+						end,
+						width = "full",
+						order = 6.6,
+					},
+					testTexturesButton = {
+						type = 'execute',
+						name = "Test Enemy/Friendly Textures",
+						desc = "Shows test toasts with your selected textures and colors:\n" ..
+						       "• Red enemy flag carrier toast (with your enemy texture)\n" ..
+						       "• Green friendly flag carrier toast (with your friendly texture)\n\n" ..
+						       "This lets you preview your texture choices before entering a battleground.",
+						func = function()
+							if SoundAlerter.ProximityToasts then
+								local sadb = SoundAlerter.db1.profile
+								local oldEnabled = sadb.proximityToasts.enabled
+								sadb.proximityToasts.enabled = true
+
+								-- Test enemy texture
+								SoundAlerter.ProximityToasts:ShowToast(
+									"EnemyCarrier",
+									"ROGUE",
+									nil,
+									"TEST-ENEMY-" .. math.random(1000, 9999),
+									80,
+									nil,
+									"ENEMY FLAG CARRIER!",
+									"FLAG_ENEMY"
+								)
+
+								-- Test friendly texture (1.2 second delay)
+								SoundAlerter:ScheduleTimer(function()
+									SoundAlerter.ProximityToasts:ShowToast(
+										"FriendlyCarrier",
+										"PALADIN",
+										nil,
+										"TEST-FRIENDLY-" .. math.random(1000, 9999),
+										80,
+										nil,
+										"FRIENDLY FLAG CARRIER!",
+										"FLAG_FRIENDLY"
+									)
+								end, 1.2)
+
+								-- Restore old setting
+								sadb.proximityToasts.enabled = oldEnabled
+
+								DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00SoundAlerter:|r Test flag textures displayed!")
+							else
+								DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000SoundAlerter:|r ProximityToasts not initialized!")
+							end
+						end,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled or
+							       not sadb.flagTeamBackgroundColors
+						end,
+						width = "full",
+						order = 6.7,
+					},
+					toastNote = {
+						type = 'description',
+						name = "\n|cff808080Toast appearance settings (position, duration, style) are shared with Proximity Alerts. " ..
+						       "Adjust these in the Proximity Alerts tab.|r\n",
+						fontSize = "small",
+						order = 7,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 4: FILTERING OPTIONS
+			-- ===========================
+			filteringOptions = {
+				type = 'group',
+				inline = true,
+				name = "4. Filtering Options",
+				order = 5,
+				args = {
+					flagOnlyEnemyTeam = {
+						type = 'toggle',
+						name = "Only Enemy Team Events",
+						desc = "Only alert for enemy flag pickups/captures (recommended for less spam). Automatically disabled when 'Alert All Flag Actions' is enabled.",
+						get = function() return sadb.flagOnlyEnemyTeam end,
+						set = function(_, val)
+							sadb.flagOnlyEnemyTeam = val
+							-- Auto-untoggle friendly team filter (mutually exclusive)
+							if val then
+								sadb.flagOnlyFriendlyTeam = false
+							end
+						end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled or sadb.flagAllActions end,
+						width = "full",
+						order = 1,
+					},
+					flagOnlyFriendlyTeam = {
+						type = 'toggle',
+						name = "Only Friendly Team Events",
+						desc = "Only alert for friendly flag pickups/captures. Automatically disabled when 'Alert All Flag Actions' is enabled.",
+						get = function() return sadb.flagOnlyFriendlyTeam end,
+						set = function(_, val)
+							sadb.flagOnlyFriendlyTeam = val
+							-- Auto-untoggle enemy team filter (mutually exclusive)
+							if val then
+								sadb.flagOnlyEnemyTeam = false
+							end
+						end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled or sadb.flagAllActions end,
+						width = "full",
+						order = 2,
+					},
+					flagAllActions = {
+						type = 'toggle',
+						name = "Alert All Flag Actions",
+						desc = "Alert for ALL flag events (pickup, drop, capture, return) for BOTH enemy and friendly teams. Enabling this will automatically disable team-specific filters above. May be spammy in active battlegrounds.",
+						get = function() return sadb.flagAllActions end,
+						set = function(_, val)
+							sadb.flagAllActions = val
+							-- Auto-untoggle team filters when enabling (contradictory logic)
+							if val then
+								sadb.flagOnlyEnemyTeam = false
+								sadb.flagOnlyFriendlyTeam = false
+							end
+						end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 5: CHAT INTEGRATION
+			-- ===========================
+			chatIntegration = {
+				type = 'group',
+				inline = true,
+				name = "5. Chat Integration",
+				order = 6,
+				args = {
+					flagChatEnabled = {
+						type = 'toggle',
+						name = "Send Chat Messages",
+						desc = "Announce flag events in chat channels",
+						get = function() return sadb.flagChatEnabled end,
+						set = function(_, val) sadb.flagChatEnabled = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled end,
+						width = "full",
+						order = 1,
+					},
+					flagChatText = {
+						type = 'input',
+						name = "Chat Message Template",
+						desc = "Customize the chat message. Available placeholders:\n" ..
+						       "#class# - Enemy class name\n" ..
+						       "#player# - Player name\n" ..
+						       "#action# - Action (picked up flag, captured flag, etc.)\n\n" ..
+						       "Example: [#class#] #player# #action#!",
+						get = function() return sadb.flagChatText end,
+						set = function(_, val) sadb.flagChatText = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled or not sadb.flagChatEnabled end,
+						width = 'full',
+						order = 2,
+					},
+					flagChatChannel = {
+						type = 'select',
+						name = "Chat Channel",
+						desc = "Which channel to send flag alerts to",
+						values = {
+							["SAY"] = "Say",
+							["PARTY"] = "Party",
+							["RAID"] = "Raid",
+							["BATTLEGROUND"] = "Battleground",
+						},
+						get = function() return sadb.flagChatChannel end,
+						set = function(_, val) sadb.flagChatChannel = val end,
+						disabled = function() return not sadb.battlegroundAlertsEnabled or not sadb.flagChatEnabled end,
+						order = 3,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 6: PERFORMANCE & DEBUGGING
+			-- ===========================
+			performanceSection = {
+				type = 'group',
+				inline = true,
+				name = "6. Performance & Debugging",
 				order = 7,
+				args = {
+					metricsButton = {
+						type = 'execute',
+						name = "Show Performance Metrics",
+						desc = "Display processing time, cache hit rate, and other performance data",
+						func = function()
+							if SoundAlerter.FlagAlerts then
+								SoundAlerter.FlagAlerts:PrintMetrics()
+							else
+								SoundAlerter:Print("|cffFF0000Error: FlagAlerts module not loaded|r")
+							end
+						end,
+						order = 1,
+					},
+					resetMetricsButton = {
+						type = 'execute',
+						name = "Reset Metrics",
+						desc = "Clear performance tracking data",
+						func = function()
+							if SoundAlerter.FlagAlerts then
+								SoundAlerter.FlagAlerts:ResetMetrics()
+							else
+								SoundAlerter:Print("|cffFF0000Error: FlagAlerts module not loaded|r")
+							end
+						end,
+						order = 2,
+					},
+					testButton = {
+						type = 'execute',
+						name = "Test Flag Pickup Alert",
+						desc = "Manually trigger a test flag pickup event",
+						func = function()
+							if SoundAlerter.FlagAlerts then
+								SoundAlerter.FlagAlerts:ProcessFlagEvent("Testplayer has taken the flag!")
+							else
+								SoundAlerter:Print("|cffFF0000Error: FlagAlerts module not loaded|r")
+							end
+						end,
+						order = 3,
+					},
+				},
+			},
+
+			-- ===========================
+			-- SECTION 7: FUTURE FEATURES
+			-- ===========================
+			futureObjectives = {
+				type = 'group',
+				inline = true,
+				name = "7. Future Features",
+				order = 8,
 				args = {
 					futureDescription = {
 						type = 'description',
-						name = "|cff808080Objective Alerts (Coming Soon)|r\n\nFuture versions will include alerts for:\n• Battleground flag pickups (WSG, EOTS)\n• Flag captures and returns\n• Base assaults (Arathi Basin)\n\nThis section is reserved for battlefield awareness features.\n",
+						name = "|cff808080The following objective types are planned for future versions:|r\n\n" ..
+						       "• Base Assaults/Captures (Arathi Basin, Eye of the Storm)\n" ..
+						       "• Graveyard Assaults (Alterac Valley)\n" ..
+						       "• Tower Destruction (Alterac Valley)\n" ..
+						       "• Node Captures (Isle of Conquest)\n\n" ..
+						       "These will be added in future updates with the same configuration pattern.\n",
 						fontSize = "medium",
 						order = 1,
-					},
-					objectiveAlertsEnabled = {
-						type = 'toggle',
-						name = "Enable Objective Alerts (Not Implemented)",
-						desc = "Placeholder for future battleground objective detection",
-						disabled = true,
-						order = 2,
 					},
 				},
 			},

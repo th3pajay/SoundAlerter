@@ -175,10 +175,54 @@ dbDefaults = {
 		},
 
 		-- ===========================
+		-- Battleground Alert Settings
+		-- ===========================
+		battlegroundAlertsEnabled = false,  -- Disabled by default (opt-in)
+
+		-- Flag-specific alerts
+		flagPickupAudio = true,
+		flagDropAudio = true,
+		flagCaptureAudio = true,
+		flagReturnAudio = false,  -- Less critical
+
+		-- Toast settings for flag alerts
+		flagToastsEnabled = true,
+
+		-- Team-based background colors for flag toasts
+		flagTeamBackgroundColors = true,  -- Master toggle for colored backgrounds
+		flagEnemyRedBackground = true,    -- Red transparent background for enemy flag carriers
+		flagFriendlyGreenBackground = true, -- Green transparent background for friendly flag carriers
+
+		-- Team-based background textures for flag toasts
+		flagEnemyTexture = "Solid",       -- Background texture for enemy flag carriers
+		flagFriendlyTexture = "Solid",    -- Background texture for friendly flag carriers
+
+		-- Chat integration
+		flagChatEnabled = false,
+		flagChatText = "#class# has the flag!",  -- Placeholders: #class#, #player#, #action#
+		flagChatChannel = "SAY",
+
+		-- Team-based filtering (WoW Ascension mixed-faction support)
+		flagOnlyEnemyTeam = true,     -- Only alert for enemy flag events (default for competitive play)
+		flagOnlyFriendlyTeam = false, -- Only alert for friendly flag events
+		flagAllActions = false,       -- Alert for all flag events (pickup, drop, cap, return)
+
+		-- Team assignment cache (persistent, for mixed-faction BGs)
+		persistentTeamCache = {},  -- PlayerName → { team, lastSeen } mapping
+
+		-- ===========================
 		-- Performance Optimization (All Zones)
 		-- ===========================
 		learnedClasses = {},  -- GUID → class mapping (persistent)
 		learnedClassesEnabled = true,
+
+		-- ===========================
+		-- Persistent Class Cache (Battleground Alerts)
+		-- ===========================
+		persistentClassCache = {},  -- PlayerName → { class, lastSeen } mapping
+		persistentCacheEnabled = true,
+		persistentCacheMaxSize = 500,  -- Max entries (LRU eviction)
+		persistentCacheMaxAge = 2592000,  -- 30 days in seconds
 		learnedClassesMaxSize = 5000,
 		negativeCacheEnabled = true,
 		negativeCacheTTL = 5,  -- seconds

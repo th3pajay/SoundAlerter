@@ -6,7 +6,6 @@ end
 local ProximityToasts = {}
 SoundAlerter.ProximityToasts = ProximityToasts
 
--- Performance: Cache combat state to reduce InCombatLockdown() calls
 ProximityToasts.inCombat = false
 
 local MAX_TOASTS = 5
@@ -30,48 +29,40 @@ local CLASS_ICONS = {
     DRUID = "Interface\\Icons\\ClassIcon_Druid",
 }
 
+-- Performance-friendly WoW 3.3.5a backdrop textures
+local BACKDROP_TEXTURES = {
+    Solid = "Interface\\Tooltips\\UI-Tooltip-Background",
+    DialogBox = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    Rock = "Interface\\FrameGeneral\\UI-Background-Rock",
+    Marble = "Interface\\FrameGeneral\\UI-Background-Marble-Round",
+}
+
 local classColorCache = {}
 
-ProximityToasts.toastPool = {}
+ProximityToasts.secureToastPool = {}
+ProximityToasts.insecureToastPool = {}
 ProximityToasts.activeToasts = {}
 ProximityToasts.lastToastTime = {}
 ProximityToasts.initialized = false
+ProximityToasts.swapInProgress = false
+ProximityToasts.insecureSwapBuffer = {}
+ProximityToasts.swapMetrics = {count = 0, totalTime = 0, maxTime = 0, histogram = {}}
 
--- Performance: Pre-built unit scan list (built once, reused)
--- Ordered by likelihood: common units first, then party/raid/arena
-local unitScanOrder = {
-    "target", "mouseover", "focus", "targettarget", "focustarget",
-    "player", "pet", "pettarget",
-    "party1", "party2", "party3", "party4",
-    "party1target", "party2target", "party3target", "party4target",
-    "partypet1", "partypet2", "partypet3", "partypet4",
-}
-
--- Add raid members 1-40 (all possible slots)
-for i = 1, 40 do
-    table.insert(unitScanOrder, "raid" .. i)
-    table.insert(unitScanOrder, "raid" .. i .. "target")
-    table.insert(unitScanOrder, "raidpet" .. i)
+local function SanitizeMacroText(text)
+    if not text then return "" end
+    text = text:gsub("\n", ""):gsub("\r", ""):gsub("%z", "")
+    return text
 end
 
--- Add arena opponents 1-5
-for i = 1, 5 do
-    table.insert(unitScanOrder, "arena" .. i)
-    table.insert(unitScanOrder, "arena" .. i .. "target")
-    table.insert(unitScanOrder, "arenapet" .. i)
-end
-
--- Optimized targeting function for WoW 3.3.5 (WotLK)
--- Performance: Pre-built scan list, early exit on success
 local function TargetByNameCompat(targetName)
     if not targetName then return false end
 
-    -- Scan pre-built unit list with early exit
-    for _, unitId in ipairs(unitScanOrder) do
-        if UnitExists(unitId) and UnitName(unitId) == targetName then
-            TargetUnit(unitId)
-            return true
-        end
+    -- Use TargetByName() API instead of RunMacroText() to avoid taint
+    -- This is safe for insecure frames but less accurate with duplicate names
+    TargetByName(targetName)
+
+    if UnitExists("target") and UnitName("target") == targetName then
+        return true
     end
 
     return false
@@ -93,22 +84,40 @@ local function GetClassColor(className)
     return cached[1], cached[2], cached[3]
 end
 
--- Helper function to calculate rainbow colors using sine waves
--- Returns smooth RGB values that cycle over time
 local function GetRainbowColor(time)
-    -- Slow cycle: full rainbow every 6 seconds
     local frequency = math.pi * 2 / 6.0
-
-    -- Phase-shifted sine waves for smooth RGB transitions
-    -- Each channel offset by 120 degrees (2π/3) for full color spectrum
     local r = math.sin(frequency * time + 0) * 0.5 + 0.5
-    local g = math.sin(frequency * time + 2.0944) * 0.5 + 0.5  -- 2π/3 ≈ 2.0944
-    local b = math.sin(frequency * time + 4.1888) * 0.5 + 0.5  -- 4π/3 ≈ 4.1888
+    local g = math.sin(frequency * time + 2.0944) * 0.5 + 0.5
+    local b = math.sin(frequency * time + 4.1888) * 0.5 + 0.5
 
     return r, g, b
 end
 
--- Helper function to update countdown bar segments
+-- Get backdrop configuration based on alert type and user settings
+local function GetBackdropConfig(alertType)
+    local sadb = SoundAlerter.db1.profile
+    local textureName = "Solid"  -- Default to solid
+
+    -- Determine which texture to use based on alert type
+    if alertType == "FLAG_ENEMY" and sadb.flagTeamBackgroundColors and sadb.flagEnemyTexture then
+        textureName = sadb.flagEnemyTexture
+    elseif alertType == "FLAG_FRIENDLY" and sadb.flagTeamBackgroundColors and sadb.flagFriendlyTexture then
+        textureName = sadb.flagFriendlyTexture
+    end
+
+    -- Get texture path with fallback to solid
+    local bgFile = BACKDROP_TEXTURES[textureName] or BACKDROP_TEXTURES["Solid"]
+
+    return {
+        bgFile = bgFile,
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = {left = 4, right = 4, top = 4, bottom = 4}
+    }
+end
+
 local function UpdateCountdownSegments(toast, displayElapsed)
     if not toast.countdownBar or not toast.cachedSegmentData then
         return
@@ -116,15 +125,12 @@ local function UpdateCountdownSegments(toast, displayElapsed)
 
     local duration = toast.cachedSegmentData.duration
     local secondsElapsed = math.floor(displayElapsed)
-    local segmentProgress = (displayElapsed % 1)  -- 0-1 progress within current second
-
-    -- Fade current segment progressively
+    local segmentProgress = (displayElapsed % 1)
     local currentSegmentIndex = secondsElapsed + 1
     if currentSegmentIndex <= duration and toast.countdownBar.segments[currentSegmentIndex] then
         toast.countdownBar.segments[currentSegmentIndex]:SetAlpha(1 - segmentProgress)
     end
 
-    -- Hide newly elapsed segments only (avoid redundant SetAlpha calls)
     local lastHidden = toast.cachedSegmentData.lastHiddenSegment or 0
     for i = lastHidden + 1, secondsElapsed do
         if toast.countdownBar.segments[i] then
@@ -134,8 +140,9 @@ local function UpdateCountdownSegments(toast, displayElapsed)
     toast.cachedSegmentData.lastHiddenSegment = secondsElapsed
 end
 
-local function CreateToastFrame(index)
-    local toast = CreateFrame("Button", "SoundAlerterToast"..index, UIParent)
+local function CreateToastFrame(index, isSecure)
+    local frameName = isSecure and "SoundAlerterSecureToast"..index or "SoundAlerterInsecureToast"..index
+    local toast = CreateFrame("Button", frameName, UIParent)
     toast:SetSize(TOAST_WIDTH, TOAST_HEIGHT)
     toast:SetFrameStrata("HIGH")
     toast:SetFrameLevel(100)
@@ -171,7 +178,6 @@ local function CreateToastFrame(index)
     toast.detailText:SetJustifyH("LEFT")
     toast.detailText:SetTextColor(0.8, 0.8, 0.8)
 
-    -- Create countdown bar (3px height at bottom of toast)
     toast.countdownBar = CreateFrame("Frame", nil, toast)
     toast.countdownBar:SetHeight(3)
     toast.countdownBar:SetPoint("BOTTOMLEFT", toast, "BOTTOMLEFT", 4, 4)
@@ -179,13 +185,12 @@ local function CreateToastFrame(index)
     toast.countdownBar:SetFrameLevel(toast:GetFrameLevel() + 2)
     toast.countdownBar.segments = {}
 
-    -- Pre-create segment pool (max 30 seconds)
     local MAX_SEGMENTS = 30
     for i = 1, MAX_SEGMENTS do
         local segment = toast.countdownBar:CreateTexture(nil, "OVERLAY")
         segment:SetTexture("Interface\\Buttons\\WHITE8X8")
         segment:SetHeight(3)
-        segment:SetVertexColor(0.8, 0.2, 0.2, 1)  -- Red color
+        segment:SetVertexColor(0.8, 0.2, 0.2, 1)
         segment:Hide()
         toast.countdownBar.segments[i] = segment
     end
@@ -197,17 +202,14 @@ local function CreateToastFrame(index)
     toast.inUse = false
     toast.creationTime = 0
 
-    -- Pause state table for hover pause functionality
     toast.pauseState = {
         active = false,
         startTime = 0,
         totalTime = 0
     }
 
-    -- Cached segment data (set in ShowToast)
     toast.cachedSegmentData = nil
 
-    -- User data table for storing target information
     toast.userData = {
         unitName = nil,
         guid = nil,
@@ -215,118 +217,72 @@ local function CreateToastFrame(index)
         unitToken = nil,
     }
 
-    -- Create nested SecureActionButton for secure targeting (out of combat)
-    -- Performance: Pre-configure static attributes once
-    if not InCombatLockdown() then
-        toast.secureButton = CreateFrame("Button", nil, toast, "SecureActionButtonTemplate")
-        toast.secureButton:SetAllPoints(toast)
-        toast.secureButton:SetFrameLevel(toast:GetFrameLevel() + 1)
-        toast.secureButton:RegisterForClicks("AnyUp", "AnyDown")
+    toast.isSecure = isSecure
 
-        -- Pre-configure secure attributes (set once, update macrotext dynamically)
-        toast.secureButton:SetAttribute("type", "macro")
-        toast.secureButton:SetAttribute("shift-type1", "macro")
+    if isSecure then
+        local secureButton = CreateFrame("Button", frameName.."SecureAction", UIParent, "SecureActionButtonTemplate")
+        secureButton:SetAllPoints(toast)
+        secureButton:SetFrameStrata("HIGH")
+        secureButton:SetFrameLevel(101)
+        secureButton:Hide()
+        secureButton:RegisterForClicks("LeftButtonDown")
+        secureButton:SetAttribute("type1", "macro")
 
-        -- PostClick handler with lightweight OnUpdate delay
-        toast.secureButton:SetScript("PostClick", function(self, button, down)
-            if not down then
-                local parent = self:GetParent()
-                if parent and parent.inUse then
-                    -- Lightweight 150ms delay using OnUpdate instead of AceTimer
-                    local dismissTime = GetTime() + 0.15
-                    parent.pendingDismiss = true
-                    parent.dismissTime = dismissTime
-
-                    parent:SetScript("OnUpdate", function(frame, elapsed)
-                        if frame.pendingDismiss and GetTime() >= frame.dismissTime then
-                            frame.pendingDismiss = false
-                            frame:SetScript("OnUpdate", nil)
-                            ProximityToasts:ReleaseToast(frame)
-                        end
-                    end)
-                end
-            end
-        end)
-
-        -- Hover handlers for pause functionality (when secureButton is active)
-        toast.secureButton:SetScript("OnEnter", function(self)
-            local parent = self:GetParent()
-            if not parent.inUse or parent.pendingDismiss then
+        secureButton:SetScript("OnEnter", function(self)
+            if not toast.inUse or toast.pendingDismiss then
                 return
             end
 
-            -- Only pause during display phase (after fade-in, before fade-out)
-            local elapsed = GetTime() - parent.startTime - parent.pauseState.totalTime
-            if elapsed >= FADE_IN_DURATION and elapsed < (FADE_IN_DURATION + parent.displayDuration) then
-                parent.pauseState.active = true
-                parent.pauseState.startTime = GetTime()
+            local elapsed = GetTime() - toast.startTime - toast.pauseState.totalTime
+            if elapsed >= FADE_IN_DURATION and elapsed < (FADE_IN_DURATION + toast.displayDuration) then
+                toast.pauseState.active = true
+                toast.pauseState.startTime = GetTime()
             end
         end)
 
-        toast.secureButton:SetScript("OnLeave", function(self)
-            local parent = self:GetParent()
-            if parent.pauseState.active then
-                parent.pauseState.active = false
-                local pauseDuration = GetTime() - parent.pauseState.startTime
-                parent.pauseState.totalTime = parent.pauseState.totalTime + pauseDuration
-                parent.pauseState.startTime = 0
+        secureButton:SetScript("OnLeave", function(self)
+            if toast.pauseState.active then
+                toast.pauseState.active = false
+                local pauseDuration = GetTime() - toast.pauseState.startTime
+                toast.pauseState.totalTime = toast.pauseState.totalTime + pauseDuration
+                toast.pauseState.startTime = 0
             end
         end)
+
+        toast.secureButton = secureButton
     end
 
-    -- Enable mouse for hover detection (set once during creation, never toggle)
-    -- This prevents taint errors when ShowToast() is called during combat
     toast:EnableMouse(true)
-
-    -- Insecure fallback handler (used during combat)
     toast:RegisterForClicks("LeftButtonDown")
     toast:SetScript("OnClick", function(self, button)
+        if self.isSecure then
+            return
+        end
+
         local sadb = SoundAlerter.db1.profile
 
         if not sadb.proximityToasts or not sadb.proximityToasts.clickEnabled then
             return
         end
 
-        -- Zone check: World PvP only
-        local currentZoneType, pvpType = IsInInstance()
-        local zonePvpType = GetZonePVPInfo()
-        local inWorld = (zonePvpType == "contested" or zonePvpType == "hostile" or zonePvpType == "friendly")
-
-        if not inWorld then
-            return
-        end
-
         local targetName = self.userData and self.userData.unitName
-        local unitToken = self.userData and self.userData.unitToken
 
         if not targetName then
             return
         end
 
-        -- Try direct targeting if we have unit token
-        local targetSuccess = false
-        if unitToken and UnitExists(unitToken) then
-            TargetUnit(unitToken)
-            targetSuccess = (UnitExists("target") and UnitName("target") == targetName)
-        end
-
-        -- Fallback to name scan if direct targeting failed
-        if not targetSuccess then
-            targetSuccess = TargetByNameCompat(targetName)
-        end
+        local targetSuccess = TargetByNameCompat(targetName)
 
         if not targetSuccess then
             return
         end
 
-        -- Shift-click: Set focus target
         if IsShiftKeyDown() then
             if sadb.proximityToasts.enableFocusTarget then
                 FocusUnit("target")
             end
         end
 
-        -- Lightweight delayed dismissal using OnUpdate
         local dismissTime = GetTime() + 0.15
         self.pendingDismiss = true
         self.dismissTime = dismissTime
@@ -340,13 +296,11 @@ local function CreateToastFrame(index)
         end)
     end)
 
-    -- Pause on hover (only during display phase)
     toast:SetScript("OnEnter", function(self)
         if not self.inUse or self.pendingDismiss then
             return
         end
 
-        -- Only pause during display phase (after fade-in, before fade-out)
         local elapsed = GetTime() - self.startTime - self.pauseState.totalTime
         if elapsed >= FADE_IN_DURATION and elapsed < (FADE_IN_DURATION + self.displayDuration) then
             self.pauseState.active = true
@@ -354,7 +308,6 @@ local function CreateToastFrame(index)
         end
     end)
 
-    -- Resume on mouse leave
     toast:SetScript("OnLeave", function(self)
         if self.pauseState.active then
             self.pauseState.active = false
@@ -372,13 +325,11 @@ function ProximityToasts:Initialize()
         return
     end
 
-    -- Ensure configuration table exists
     local sadb = SoundAlerter.db1.profile
     if not sadb.proximityToasts then
         sadb.proximityToasts = {}
     end
 
-    -- Set default values for missing fields (backwards compatibility)
     if sadb.proximityToasts.clickEnabled == nil then
         sadb.proximityToasts.clickEnabled = true
     end
@@ -389,19 +340,26 @@ function ProximityToasts:Initialize()
         sadb.proximityToasts.enableFocusTarget = true
     end
 
-    -- Create toast frame pool
     for i = 1, MAX_TOASTS do
-        local success, result = pcall(function()
-            return CreateToastFrame(i)
+        local success, secureFrame = pcall(function()
+            return CreateToastFrame(i, true)
         end)
         if success then
-            self.toastPool[i] = result
+            self.secureToastPool[i] = secureFrame
+        else
+            return
+        end
+
+        local success2, insecureFrame = pcall(function()
+            return CreateToastFrame(i, false)
+        end)
+        if success2 then
+            self.insecureToastPool[i] = insecureFrame
         else
             return
         end
     end
 
-    -- Register combat state events for caching
     local combatFrame = CreateFrame("Frame")
     combatFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
     combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -410,6 +368,7 @@ function ProximityToasts:Initialize()
             ProximityToasts.inCombat = true
         elseif event == "PLAYER_REGEN_ENABLED" then
             ProximityToasts.inCombat = false
+            ProximityToasts:SwapInsecureToSecureFrames()
         end
     end)
 
@@ -417,14 +376,16 @@ function ProximityToasts:Initialize()
     self:StartCleanupTimer()
 
     if SoundAlerter.db1.profile.debugmode then
-        SoundAlerter:Print("Proximity Toasts initialized with " .. MAX_TOASTS .. " frame pool")
+        SoundAlerter:Print("Proximity Toasts initialized with dual pools (" .. MAX_TOASTS .. " secure + " .. MAX_TOASTS .. " insecure)")
     end
 end
 
 function ProximityToasts:AcquireToast()
+    local pool = self.inCombat and self.insecureToastPool or self.secureToastPool
+
     for i = 1, MAX_TOASTS do
-        local toast = self.toastPool[i]
-        if not toast.inUse then
+        local toast = pool[i]
+        if toast and not toast.inUse then
             toast.inUse = true
             return toast
         end
@@ -453,15 +414,18 @@ function ProximityToasts:ReleaseToast(toast)
     toast.displayDuration = 0
     toast.pendingDismiss = false
 
-    -- Reset pause state
     toast.pauseState.active = false
     toast.pauseState.startTime = 0
     toast.pauseState.totalTime = 0
 
-    -- Reset cached segment data
     toast.cachedSegmentData = nil
 
-    -- Hide all countdown segments
+    if toast.secureButton then
+        toast.secureButton:Hide()
+        toast.secureButton:SetAttribute("macrotext1", nil)
+        toast.secureButton:SetAttribute("shift-macrotext1", nil)
+    end
+
     if toast.countdownBar and toast.countdownBar.segments then
         for i = 1, #toast.countdownBar.segments do
             toast.countdownBar.segments[i]:Hide()
@@ -472,11 +436,9 @@ function ProximityToasts:ReleaseToast(toast)
     toast.titleText:SetText("")
     toast.levelText:SetText("")
     toast.detailText:SetText("")
-    toast:SetBackdropColor(0, 0, 0, 0.85)
-    toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)  -- Reset to default red border
     toast.icon:SetTexture(nil)
-
-    -- Performance: Reuse userData table (prevents GC pressure)
+    toast:SetBackdropColor(0, 0, 0, 0.85)
+    toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)
     if toast.userData then
         toast.userData.unitName = nil
         toast.userData.guid = nil
@@ -492,6 +454,198 @@ function ProximityToasts:ReleaseToast(toast)
     end
 
     self:UpdateLayout()
+end
+
+local ToastDataSchema = {
+    "unitName", "guid", "className", "unitToken",
+}
+
+local function ValidateToastData(frame)
+    for _, field in ipairs(ToastDataSchema) do
+        if not frame.userData or frame.userData[field] == nil then
+            return false, "Missing field: " .. field
+        end
+    end
+    return true
+end
+
+function ProximityToasts:CopyToastData(oldFrame, newFrame)
+    for _, field in ipairs(ToastDataSchema) do
+        if oldFrame.userData and oldFrame.userData[field] ~= nil then
+            newFrame.userData[field] = oldFrame.userData[field]
+        end
+    end
+
+    newFrame.startTime = oldFrame.startTime
+    newFrame.displayDuration = oldFrame.displayDuration
+    newFrame.creationTime = oldFrame.creationTime
+    newFrame.elapsedTime = oldFrame.elapsedTime
+
+    newFrame.pauseState.active = oldFrame.pauseState.active
+    newFrame.pauseState.startTime = oldFrame.pauseState.active and GetTime() or 0
+    newFrame.pauseState.totalTime = oldFrame.pauseState.totalTime
+
+    newFrame.pendingDismiss = oldFrame.pendingDismiss
+    newFrame.dismissTime = oldFrame.dismissTime
+
+    if oldFrame.cachedSegmentData then
+        newFrame.cachedSegmentData = {
+            duration = oldFrame.cachedSegmentData.duration,
+            segmentWidth = oldFrame.cachedSegmentData.segmentWidth,
+            lastHiddenSegment = oldFrame.cachedSegmentData.lastHiddenSegment
+        }
+
+        for i = 1, oldFrame.cachedSegmentData.duration do
+            local oldSegment = oldFrame.countdownBar.segments[i]
+            local newSegment = newFrame.countdownBar.segments[i]
+            if oldSegment and newSegment then
+                newSegment:ClearAllPoints()
+                newSegment:SetPoint("LEFT", newFrame.countdownBar, "LEFT", (i-1) * newFrame.cachedSegmentData.segmentWidth, 0)
+                newSegment:SetWidth(newFrame.cachedSegmentData.segmentWidth - 2)
+                if oldSegment:IsShown() then
+                    newSegment:Show()
+                else
+                    newSegment:Hide()
+                end
+            end
+        end
+    end
+
+    if oldFrame.icon:GetTexture() then
+        newFrame.icon:SetTexture(oldFrame.icon:GetTexture())
+    end
+
+    newFrame.titleText:SetText(oldFrame.titleText:GetText() or "")
+    newFrame.levelText:SetText(oldFrame.levelText:GetText() or "")
+    newFrame.detailText:SetText(oldFrame.detailText:GetText() or "")
+
+    local r, g, b, a = oldFrame:GetBackdropColor()
+    newFrame:SetBackdropColor(r, g, b, a)
+
+    r, g, b, a = oldFrame:GetBackdropBorderColor()
+    newFrame:SetBackdropBorderColor(r, g, b, a)
+
+    if newFrame.secureButton and oldFrame.userData.unitName then
+        local sadb = SoundAlerter.db1.profile
+        local safeUnitName = SanitizeMacroText(oldFrame.userData.unitName)
+        newFrame.secureButton:SetAttribute("type1", "macro")
+        newFrame.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
+
+        if sadb.proximityToasts.enableFocusTarget then
+            newFrame.secureButton:SetAttribute("shift-type1", "macro")
+            newFrame.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
+        end
+
+        newFrame.secureButton:Show()
+    end
+
+    newFrame.inUse = true
+    newFrame.needsVisualRefresh = true
+
+    newFrame:SetScript("OnUpdate", oldFrame:GetScript("OnUpdate"))
+
+    return true
+end
+
+function ProximityToasts:SwapInsecureToSecureFrames()
+    if InCombatLockdown() or self.swapInProgress then
+        return
+    end
+
+    self.swapInProgress = true
+    local startTime = debugprofilestop()
+
+    local insecureToasts = self.insecureSwapBuffer
+    wipe(insecureToasts)
+
+    for i = #self.activeToasts, 1, -1 do
+        if not self.activeToasts[i].isSecure then
+            table.insert(insecureToasts, {index = i, frame = self.activeToasts[i]})
+        end
+    end
+
+    if #insecureToasts == 0 then
+        self.swapInProgress = false
+        return
+    end
+
+    local availableSecure = 0
+    for i = 1, MAX_TOASTS do
+        if not self.secureToastPool[i].inUse then
+            availableSecure = availableSecure + 1
+        end
+    end
+
+    if availableSecure < #insecureToasts then
+        while availableSecure < #insecureToasts and #self.activeToasts > 0 do
+            local oldest = self.activeToasts[1]
+            if oldest.isSecure then
+                self:ReleaseToast(oldest)
+                availableSecure = availableSecure + 1
+            else
+                break
+            end
+        end
+
+        if availableSecure < #insecureToasts then
+            self.swapInProgress = false
+            return
+        end
+    end
+
+    local swappedCount = 0
+    for _, data in ipairs(insecureToasts) do
+        local oldFrame = data.frame
+        local newFrame = nil
+
+        for i = 1, MAX_TOASTS do
+            if not self.secureToastPool[i].inUse then
+                newFrame = self.secureToastPool[i]
+                break
+            end
+        end
+
+        if not newFrame then
+            break
+        end
+
+        self:CopyToastData(oldFrame, newFrame)
+
+        self.activeToasts[data.index] = newFrame
+
+        newFrame:Show()
+        self:ReleaseToast(oldFrame)
+
+        swappedCount = swappedCount + 1
+    end
+
+    if swappedCount > 0 then
+        self:UpdateLayout()
+    end
+
+    local elapsed = debugprofilestop() - startTime
+
+    self.swapMetrics.count = self.swapMetrics.count + 1
+    self.swapMetrics.totalTime = self.swapMetrics.totalTime + elapsed
+    self.swapMetrics.maxTime = math.max(self.swapMetrics.maxTime, elapsed)
+    self.swapMetrics.histogram[swappedCount] = (self.swapMetrics.histogram[swappedCount] or 0) + 1
+
+    if SoundAlerter.db1.profile.debugmode then
+        local avgTime = self.swapMetrics.totalTime / self.swapMetrics.count
+        SoundAlerter:Print(string.format(
+            "[SWAP] %d frames swapped in %.2fms (avg: %.2fms, max: %.2fms)",
+            swappedCount, elapsed, avgTime, self.swapMetrics.maxTime
+        ))
+    end
+
+    if elapsed > 6.0 then
+        SoundAlerter:Print(string.format(
+            "[SWAP WARNING] Frame swap took %.2fms (exceeds 6ms budget)",
+            elapsed
+        ))
+    end
+
+    self.swapInProgress = false
 end
 
 function ProximityToasts:UpdateLayout()
@@ -537,14 +691,34 @@ function ProximityToasts:CleanupHistory()
     end
 end
 
-function ProximityToasts:ShowToast(unitName, className, distance, guid, level, unitToken)
+function ProximityToasts:ShowToast(unitName, className, distance, guid, level, unitToken, customTitle, alertType)
     local sadb = SoundAlerter.db1.profile
 
-    if not self.initialized or not sadb.proximityToasts or not sadb.proximityToasts.enabled or not unitName then
+    if not self.initialized then
+        if sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] ShowToast blocked: not initialized")
+        end
+        return
+    end
+
+    if not sadb.proximityToasts or not sadb.proximityToasts.enabled then
+        if sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] ShowToast blocked: toasts disabled")
+        end
+        return
+    end
+
+    if not unitName then
+        if sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] ShowToast blocked: no unitName")
+        end
         return
     end
 
     if guid and not self:ShouldShowToast(guid) then
+        if sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] ShowToast blocked: cooldown (" .. unitName .. ")")
+        end
         return
     end
 
@@ -555,25 +729,49 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
     end
 
     local toast = self:AcquireToast()
-    if not toast then return end
+    if not toast then
+        if sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] ShowToast blocked: no available toast frame")
+        end
+        return
+    end
+
+    if sadb.debugmode then
+        SoundAlerter:Print("[ProximityToasts] Showing toast for " .. unitName .. " (" .. (className or "UNKNOWN") .. ")")
+    end
 
     toast.icon:SetTexture(CLASS_ICONS[className] or "Interface\\Icons\\Ability_Rogue_Ambush")
 
-    if sadb.proximityToasts.useClassColors and className then
+    -- Apply backdrop texture dynamically based on alert type
+    local backdropConfig = GetBackdropConfig(alertType)
+    toast:SetBackdrop(backdropConfig)
+
+    -- Background color: flag alerts get red/green (if enabled), proximity alerts use class colors or default
+    if alertType == "FLAG_ENEMY" and sadb.flagTeamBackgroundColors and sadb.flagEnemyRedBackground then
+        -- Red transparent background for enemy flag alerts (battleground only)
+        toast:SetBackdropColor(0.4, 0.05, 0.05, 0.85)
+    elseif alertType == "FLAG_FRIENDLY" and sadb.flagTeamBackgroundColors and sadb.flagFriendlyGreenBackground then
+        -- Green transparent background for friendly flag alerts (battleground only)
+        toast:SetBackdropColor(0.05, 0.4, 0.05, 0.85)
+    elseif sadb.proximityToasts.useClassColors and className then
+        -- Proximity alerts: use class colors if enabled
         local r, g, b = GetClassColor(className)
         toast:SetBackdropColor(r, g, b, 0.85)
     else
+        -- Proximity alerts: default black background
         toast:SetBackdropColor(0, 0, 0, 0.85)
     end
 
-    -- Set initial border color (will be overridden by rainbow animation if enabled)
     if not sadb.proximityToasts.rainbowBorder then
-        toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)  -- Default red border
+        toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)
     end
 
-    toast.titleText:SetText(className and (className .. " NEARBY!") or "ENEMY NEARBY!")
+    if customTitle then
+        toast.titleText:SetText(customTitle)
+    else
+        toast.titleText:SetText(className and (className .. " NEARBY!") or "ENEMY NEARBY!")
+    end
 
-    -- Display level information, showing "High Level" for targets too high level to inspect
     if level then
         if level == -1 then
             toast.levelText:SetText("High Level")
@@ -590,7 +788,6 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
     end
     toast.detailText:SetText(detailText)
 
-    -- Store user data for click-to-target functionality
     if toast.userData then
         toast.userData.unitName = unitName
         toast.userData.guid = guid
@@ -598,25 +795,17 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
         toast.userData.unitToken = unitToken
     end
 
-    -- Configure secure button if available and out of combat
-    -- Performance: Use cached combat state, only update macrotext
-    if toast.secureButton and not self.inCombat then
-        -- Update macrotext only (attributes pre-configured on creation)
-        local macroText = "/targetexact " .. unitName
-        toast.secureButton:SetAttribute("macrotext", macroText)
-        toast.secureButton:SetAttribute("shift-macrotext1", macroText .. "\n/focus")
+    if toast.secureButton and unitName then
+        local safeUnitName = SanitizeMacroText(unitName)
+        toast.secureButton:SetAttribute("type1", "macro")
+        toast.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
 
-        -- Enable secure button for clicks (higher frame level = priority)
-        -- Toast mouse is always enabled (set once during creation)
-        toast.secureButton:Show()
-        toast.secureButton:EnableMouse(true)
-    else
-        -- Combat or no secure button - use insecure fallback
-        -- Toast mouse is always enabled (no need to toggle, prevents taint)
-        if toast.secureButton then
-            toast.secureButton:EnableMouse(false)
-            toast.secureButton:Hide()
+        if sadb.proximityToasts.enableFocusTarget then
+            toast.secureButton:SetAttribute("shift-type1", "macro")
+            toast.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
         end
+
+        toast.secureButton:Show()
     end
 
     toast.creationTime = GetTime()
@@ -626,35 +815,30 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
     toast.startTime = GetTime()
     toast.displayDuration = sadb.proximityToasts.displayDuration or 3.0
 
-    -- Initialize countdown bar segments
-    local duration = math.ceil(toast.displayDuration)  -- Round up to ensure full coverage
-    local segmentWidth = (TOAST_WIDTH - 8) / duration  -- Minus left/right insets
+    local duration = math.ceil(toast.displayDuration)
+    local segmentWidth = (TOAST_WIDTH - 8) / duration
 
-    -- Cache segment data for OnUpdate performance
     toast.cachedSegmentData = {
         duration = duration,
         segmentWidth = segmentWidth,
-        lastHiddenSegment = 0  -- Track last hidden segment for optimization
+        lastHiddenSegment = 0
     }
 
-    -- Position and show required segments
     for i = 1, duration do
         local segment = toast.countdownBar.segments[i]
         if segment then
             segment:ClearAllPoints()
             segment:SetPoint("LEFT", toast.countdownBar, "LEFT", (i-1) * segmentWidth, 0)
-            segment:SetWidth(segmentWidth - 2)  -- 2px gap between segments for better visual separation
+            segment:SetWidth(segmentWidth - 2)
             segment:SetAlpha(1)
             segment:Show()
         end
     end
 
-    -- Hide unused segments (if previous toast had longer duration)
     for i = duration + 1, #toast.countdownBar.segments do
         toast.countdownBar.segments[i]:Hide()
     end
 
-    -- Reset pause state for new toast
     toast.pauseState.active = false
     toast.pauseState.startTime = 0
     toast.pauseState.totalTime = 0
@@ -664,7 +848,6 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
     toast:Show()
 
     toast:SetScript("OnUpdate", function(self, frameDelta)
-        -- Skip all timing updates while paused
         if self.pauseState.active then
             return
         end
@@ -672,34 +855,28 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
         local now = GetTime()
         local elapsed = now - self.startTime - self.pauseState.totalTime
 
-        -- Update rainbow border if enabled
         if sadb.proximityToasts.rainbowBorder then
             local r, g, b = GetRainbowColor(now)
             self:SetBackdropBorderColor(r, g, b, 1)
         end
 
-        -- Phase 1: Fade In
         if elapsed < FADE_IN_DURATION then
             local progress = elapsed / FADE_IN_DURATION
             self:SetAlpha(progress)
             local scale = 1.15 - (0.15 * progress)
             self:SetScale(scale)
 
-        -- Phase 2: Display with countdown animation
         elseif elapsed < (FADE_IN_DURATION + self.displayDuration) then
             self:SetAlpha(1)
             self:SetScale(1.0)
 
-            -- Update countdown bar segments
             local displayElapsed = elapsed - FADE_IN_DURATION
             UpdateCountdownSegments(self, displayElapsed)
 
-        -- Phase 3: Fade Out
         elseif elapsed < (FADE_IN_DURATION + self.displayDuration + FADE_OUT_DURATION) then
             local fadeProgress = (elapsed - FADE_IN_DURATION - self.displayDuration) / FADE_OUT_DURATION
             self:SetAlpha(1 - fadeProgress)
 
-            -- Hide countdown segments during fade out (only active segments)
             if self.countdownBar and self.cachedSegmentData then
                 local duration = self.cachedSegmentData.duration
                 for i = 1, duration do
@@ -707,7 +884,6 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
                 end
             end
 
-        -- Phase 4: Cleanup
         else
             self:SetScript("OnUpdate", nil)
             self:Hide()
@@ -746,39 +922,44 @@ function ProximityToasts:StartCleanupTimer()
     end
 end
 
--- Debug slash command for testing
 SLASH_SATOAST1 = "/satoast"
 SlashCmdList["SATOAST"] = function(msg)
     local command, args = msg:match("^(%S*)%s*(.-)$")
 
     if command == "test" then
         if SoundAlerter.ProximityToasts then
-            local wasDisabled = not SoundAlerter.db1.profile.proximityToasts.enabled
+            local sadb = SoundAlerter.db1.profile
+            local wasDisabled = not sadb.proximityToasts.enabled
             if wasDisabled then
-                SoundAlerter.db1.profile.proximityToasts.enabled = true
+                sadb.proximityToasts.enabled = true
             end
 
-            -- Parse optional duration argument
+            if sadb.sapath then
+                PlaySoundFile(sadb.sapath .. "ROGUE.mp3", "Master")
+                SoundAlerter:ScheduleTimer(function()
+                    PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
+                end, 0.8)
+            end
+
             local duration = tonumber(args)
             if duration and duration > 0 then
-                local savedDuration = SoundAlerter.db1.profile.proximityToasts.displayDuration
-                SoundAlerter.db1.profile.proximityToasts.displayDuration = duration
-                SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, "Player-Test-12345", 80, nil)
+                local savedDuration = sadb.proximityToasts.displayDuration
+                sadb.proximityToasts.displayDuration = duration
+                SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, nil, 80, nil, nil)
                 DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Test toast displayed with " .. duration .. "s duration.|r")
-                SoundAlerter.db1.profile.proximityToasts.displayDuration = savedDuration
+                sadb.proximityToasts.displayDuration = savedDuration
             else
-                SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, "Player-Test-12345", 80, nil)
+                SoundAlerter.ProximityToasts:ShowToast("TestEnemy", "ROGUE", nil, nil, 80, nil, nil)
                 DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Test toast displayed.|r")
             end
 
             if wasDisabled then
-                SoundAlerter.db1.profile.proximityToasts.enabled = false
+                sadb.proximityToasts.enabled = false
             end
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000ProximityToasts module not found!|r")
         end
     elseif command == "multi" then
-        -- Create multiple test toasts
         local count = tonumber(args) or 3
         if SoundAlerter.ProximityToasts then
             local wasDisabled = not SoundAlerter.db1.profile.proximityToasts.enabled
@@ -788,7 +969,7 @@ SlashCmdList["SATOAST"] = function(msg)
 
             local classes = {"WARRIOR", "PALADIN", "ROGUE", "MAGE", "WARLOCK"}
             for i = 1, math.min(count, 5) do
-                SoundAlerter.ProximityToasts:ShowToast("TestEnemy"..i, classes[i], nil, "Player-Test-"..i, 80, nil)
+                SoundAlerter.ProximityToasts:ShowToast("TestEnemy"..i, classes[i], nil, nil, 80, nil, nil)
             end
             DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Created " .. count .. " test toasts.|r")
 
@@ -797,7 +978,6 @@ SlashCmdList["SATOAST"] = function(msg)
             end
         end
     elseif command == "countdown" then
-        -- Show countdown debug info for active toasts
         if SoundAlerter.ProximityToasts then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF=== Countdown Debug ===|r")
             for i, toast in ipairs(SoundAlerter.ProximityToasts.activeToasts) do
@@ -820,26 +1000,125 @@ SlashCmdList["SATOAST"] = function(msg)
     elseif command == "enable" then
         SoundAlerter.db1.profile.proximityToasts.enabled = true
         DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Toasts enabled|r")
+    elseif command == "enableclick" then
+        local sadb = SoundAlerter.db1.profile
+        if not sadb.proximityToasts then
+            sadb.proximityToasts = {}
+        end
+        sadb.proximityToasts.clickEnabled = true
+        sadb.proximityToasts.enableClickToTarget = true
+        sadb.proximityToasts.enableFocusTarget = true
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Click-to-target enabled|r")
+    elseif command == "testcustom" then
+        if SoundAlerter.ProximityToasts then
+            local sadb = SoundAlerter.db1.profile
+            local wasDisabled = not sadb.proximityToasts.enabled
+            if wasDisabled then
+                sadb.proximityToasts.enabled = true
+            end
+
+            if sadb.sapath then
+                PlaySoundFile(sadb.sapath .. "ROGUE.mp3", "Master")
+                SoundAlerter:ScheduleTimer(function()
+                    PlaySoundFile(sadb.sapath .. "FlagPickup.mp3", "Master")
+                end, 0.8)
+            end
+
+            SoundAlerter.ProximityToasts:ShowToast("TestCarrier", "ROGUE", nil, "Player-Test-FLAG", 80, nil, "FLAG CARRIER!")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00Test toast with custom title displayed.|r")
+
+            if wasDisabled then
+                sadb.proximityToasts.enabled = false
+            end
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000ProximityToasts module not found!|r")
+        end
+    elseif command == "swapmetrics" then
+        if SoundAlerter.ProximityToasts then
+            local m = SoundAlerter.ProximityToasts.swapMetrics
+            if not m or m.count == 0 then
+                DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Frame Swap Metrics ===|r")
+                DEFAULT_CHAT_FRAME:AddMessage("|cffFF6B6BNo swap data collected yet|r")
+                return
+            end
+
+            local avgTime = m.totalTime / m.count
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Frame Swap Performance Metrics ===|r")
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Total swaps: |cffFFFFFF%d|r", m.count))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Avg time: |cffFFFFFF%.2fms|r", avgTime))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Max time: |cffFFFFFF%.2fms|r", m.maxTime))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Total time: |cffFFFFFF%.2fms|r", m.totalTime))
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Frame Count Distribution]|r")
+            for frameCount, count in pairs(m.histogram) do
+                DEFAULT_CHAT_FRAME:AddMessage(string.format("  %d frames: |cffFFFFFF%d|r swaps", frameCount, count))
+            end
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000ProximityToasts module not found!|r")
+        end
     elseif command == "status" then
         if SoundAlerter.ProximityToasts then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF=== Toast Status ===|r")
-            DEFAULT_CHAT_FRAME:AddMessage("Initialized: " .. tostring(SoundAlerter.ProximityToasts.initialized))
-            DEFAULT_CHAT_FRAME:AddMessage("Pool size: " .. #SoundAlerter.ProximityToasts.toastPool)
-            DEFAULT_CHAT_FRAME:AddMessage("Active toasts: " .. #SoundAlerter.ProximityToasts.activeToasts)
-            DEFAULT_CHAT_FRAME:AddMessage("In combat: " .. tostring(SoundAlerter.ProximityToasts.inCombat))
+            local PT = SoundAlerter.ProximityToasts
+            local sadb = SoundAlerter.db1.profile
+
+            local securePoolSize = #PT.secureToastPool
+            local insecurePoolSize = #PT.insecureToastPool
+            local activeCount = #PT.activeToasts
+            local activePoolType = PT.inCombat and "Insecure (Combat)" or "Secure (Non-Combat)"
+            local utilization = (PT.inCombat and insecurePoolSize > 0) and (activeCount / insecurePoolSize * 100) or
+                               (not PT.inCombat and securePoolSize > 0) and (activeCount / securePoolSize * 100) or 0
+
+            local historyCount = 0
+            for _ in pairs(PT.lastToastTime) do
+                historyCount = historyCount + 1
+            end
+
+            local statusColor = PT.initialized and "|cff00FF00" or "|cffFF6B6B"
+            local statusText = PT.initialized and "Online" or "Offline"
+
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Proximity Alerts - Performance Metrics ===|r")
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[System Status]|r")
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Status: %s%s|r", statusColor, statusText))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Initialized: |cffFFFFFF%s|r", tostring(PT.initialized)))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  In Combat: |cffFFFFFF%s|r", tostring(PT.inCombat)))
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Click Settings]|r")
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Click Enabled: |cffFFFFFF%s|r", tostring(sadb.proximityToasts and sadb.proximityToasts.clickEnabled or false)))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Click-to-Target: |cffFFFFFF%s|r", tostring(sadb.proximityToasts and sadb.proximityToasts.enableClickToTarget or false)))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Focus Target: |cffFFFFFF%s|r", tostring(sadb.proximityToasts and sadb.proximityToasts.enableFocusTarget or false)))
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Toast Pool]|r")
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Active Pool: |cffFFFFFF%s|r", activePoolType))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Secure Pool Size: |cffFFFFFF%d|r frames", securePoolSize))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Insecure Pool Size: |cffFFFFFF%d|r frames", insecurePoolSize))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Active Toasts: |cffFFFFFF%d|r", activeCount))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Utilization: |cffFFFFFF%.1f%%|r", utilization))
+            DEFAULT_CHAT_FRAME:AddMessage(" ")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Alert History]|r")
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Tracked Players: |cffFFFFFF%d|r", historyCount))
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  Cooldown Window: |cffFFFFFF30|r seconds"))
         else
-            DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000Module NOT found!|r")
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Proximity Alerts - Performance Metrics ===|r")
+            DEFAULT_CHAT_FRAME:AddMessage("|cffFF6B6BModule not found!|r")
         end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF/satoast commands:|r")
-        DEFAULT_CHAT_FRAME:AddMessage("  test [duration] - Show test toast (optional: specify duration in seconds)")
-        DEFAULT_CHAT_FRAME:AddMessage("  multi [count] - Create multiple test toasts (default: 3)")
-        DEFAULT_CHAT_FRAME:AddMessage("  countdown - Show countdown debug info for active toasts")
-        DEFAULT_CHAT_FRAME:AddMessage("  init - Manually initialize")
-        DEFAULT_CHAT_FRAME:AddMessage("  enable - Enable toasts")
-        DEFAULT_CHAT_FRAME:AddMessage("  status - Show debug status")
-        DEFAULT_CHAT_FRAME:AddMessage("|cffFFFF00Examples:|r")
-        DEFAULT_CHAT_FRAME:AddMessage("  /satoast test 5.0 - Test with 5 second duration")
-        DEFAULT_CHAT_FRAME:AddMessage("  /satoast multi 5 - Create 5 test toasts")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Proximity Alerts - Commands ===|r")
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Testing]|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast test [duration]|r - Show test toast (optional duration in seconds)")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast testcustom|r - Test custom title (FLAG CARRIER!)")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast multi [count]|r - Create multiple test toasts (default: 3)")
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Performance]|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast status|r - Show performance metrics and system status")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast swapmetrics|r - Show frame swap performance data")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast countdown|r - Show countdown debug info for active toasts")
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Utility]|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast init|r - Manually initialize toast system")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast enable|r - Enable toast notifications")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffFFFFFF/satoast enableclick|r - Enable click-to-target functionality")
     end
 end
