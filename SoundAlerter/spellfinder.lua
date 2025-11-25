@@ -17,6 +17,10 @@ local time, select = time, select
 local GetSpellInfo, GetSpellLink = GetSpellInfo, GetSpellLink
 local GetBuildInfo = GetBuildInfo
 
+-- Search debounce timer
+local searchDebounceTimer = nil
+local DEBOUNCE_DELAY = 0.2  -- 200ms
+
 -- Optimized Spell Database Architecture
 -- Uses string interning, multi-level indexing, and LRU caching
 SoundAlerter.spellDatabase = {
@@ -25,6 +29,7 @@ SoundAlerter.spellDatabase = {
 
     -- String interning tables (avoid duplicates)
     names = {},             -- [index] = "Healing Touch"
+    namesLower = {},        -- [index] = "healing touch" (precomputed lowercase)
     nameToIdx = {},         -- ["healing touch"] = index
 
     -- Multi-level search indexes
@@ -38,6 +43,7 @@ SoundAlerter.spellDatabase = {
     isBuilding = false,
     progress = 0,
     totalScanned = 0,
+    totalSpells = 0,        -- O(1) spell counter
     lastUpdate = 0
 }
 
@@ -53,6 +59,7 @@ function SoundAlerter:AddSpellToDatabase(spellID, name, rank)
     local db = self.spellDatabase
     local nameToIdx = db.nameToIdx  -- Cache table access
     local names = db.names
+    local namesLower = db.namesLower
 
     -- Extract base name (remove rank suffix like "(Rank 4)")
     local baseName = string_match(name, "^(.-)%s*%(") or name
@@ -63,6 +70,7 @@ function SoundAlerter:AddSpellToDatabase(spellID, name, rank)
     if not nameIdx then
         nameIdx = #names + 1
         names[nameIdx] = baseName
+        namesLower[nameIdx] = lowerName  -- Store precomputed lowercase
         nameToIdx[lowerName] = nameIdx
     end
 
@@ -83,6 +91,9 @@ function SoundAlerter:AddSpellToDatabase(spellID, name, rank)
         nameIdx = nameIdx,
         rank = rankNum
     }
+
+    -- Increment total spell counter (O(1) counting)
+    db.totalSpells = db.totalSpells + 1
 end
 
 -- Build multi-level search indexes for fast lookups
@@ -245,7 +256,9 @@ function SoundAlerter:SaveSpellDatabase()
     SoundAlerterSpellDB = {
         byID = self.spellDatabase.byID,
         names = self.spellDatabase.names,
+        namesLower = self.spellDatabase.namesLower,
         nameToIdx = self.spellDatabase.nameToIdx,
+        totalSpells = self.spellDatabase.totalSpells,
         version = GetBuildInfo(), -- Invalidate on game updates
         lastUpdate = time()
     }
@@ -273,8 +286,27 @@ function SoundAlerter:LoadSpellDatabase()
     -- Load from saved data
     self.spellDatabase.byID = SoundAlerterSpellDB.byID
     self.spellDatabase.names = SoundAlerterSpellDB.names
+    self.spellDatabase.namesLower = SoundAlerterSpellDB.namesLower or {}
     self.spellDatabase.nameToIdx = SoundAlerterSpellDB.nameToIdx
+    self.spellDatabase.totalSpells = SoundAlerterSpellDB.totalSpells or 0
     self.spellDatabase.lastUpdate = SoundAlerterSpellDB.lastUpdate
+
+    -- Migration: Populate namesLower if missing (old database format)
+    if not SoundAlerterSpellDB.namesLower then
+        local db = self.spellDatabase
+        for i = 1, #db.names do
+            db.namesLower[i] = string_lower(db.names[i])
+        end
+        -- Update totalSpells counter if missing
+        if not SoundAlerterSpellDB.totalSpells then
+            db.totalSpells = 0
+            for _ in pairs(db.byID) do
+                db.totalSpells = db.totalSpells + 1
+            end
+        end
+        self:Print("Migrated spell database to new format - saving...")
+        self:SaveSpellDatabase()
+    end
 
     -- Rebuild indexes (not persisted to save disk space)
     self:BuildSearchIndexes()
@@ -334,11 +366,12 @@ function SoundAlerter:SearchSpells(searchTerm, rankFilter)
 
     -- Filter candidates and build results (pre-allocate for common case)
     local resultCount = 0
+    local namesLower = db.namesLower  -- Cache table access
     for spellID in pairs(candidateSpells) do
         local data = byID[spellID]
         if data then
             local baseName = names[data.nameIdx]
-            local baseNameLower = string_lower(baseName)
+            local baseNameLower = namesLower[data.nameIdx] or string_lower(baseName)  -- Use precomputed or fallback
 
             -- Partial string match (case-insensitive)
             if string_find(baseNameLower, searchLower, 1, true) then
@@ -371,9 +404,17 @@ function SoundAlerter:SearchSpells(searchTerm, rankFilter)
     return results
 end
 
--- LRU cache management
+-- LRU cache management with proper access order tracking
 function SoundAlerter:CacheSearchResult(key, results)
     local cache = self.spellDatabase.searchCache
+
+    -- Remove key from current position if it exists (LRU touch)
+    for i = 1, #cacheAge do
+        if cacheAge[i] == key then
+            table_remove(cacheAge, i)
+            break
+        end
+    end
 
     -- Evict oldest entry if cache is full
     if #cacheAge >= MAX_CACHE_SIZE then
@@ -381,7 +422,7 @@ function SoundAlerter:CacheSearchResult(key, results)
         cache[oldestKey] = nil
     end
 
-    -- Add new entry
+    -- Add to end (most recently used)
     cache[key] = results
     table_insert(cacheAge, key)
 end
@@ -395,13 +436,9 @@ end
 -- Utility Functions
 -- ==================
 
--- Count total spells in database
+-- Count total spells in database (O(1) - uses cached counter)
 function SoundAlerter:CountSpells()
-    local count = 0
-    for _ in pairs(self.spellDatabase.byID) do
-        count = count + 1
-    end
-    return count
+    return self.spellDatabase.totalSpells
 end
 
 -- Get database status string
@@ -429,9 +466,11 @@ end
 function SoundAlerter:RebuildSpellDatabase()
     self.spellDatabase.byID = {}
     self.spellDatabase.names = {}
+    self.spellDatabase.namesLower = {}
     self.spellDatabase.nameToIdx = {}
     self.spellDatabase.searchIndex = {}
     self.spellDatabase.prefixIndex = {}
+    self.spellDatabase.totalSpells = 0
     self:ClearSearchCache()
     self:BuildSpellDatabase()
 
@@ -500,16 +539,46 @@ function SoundAlerter:CreateFindSpellFrame()
     frame.searchBox = searchBox
     frame.rankBox = rankBox
 
+    -- Auto-search with debouncing (optional, controlled by settings)
+    searchBox:SetCallback("OnTextChanged", function(widget, event, text)
+        local sadb = self.db1.profile
+        if sadb.findSpell and sadb.findSpell.autoSearch then
+            -- Cancel previous timer
+            if searchDebounceTimer then
+                self:CancelTimer(searchDebounceTimer)
+            end
+            -- Schedule new search after delay
+            searchDebounceTimer = self:ScheduleTimer(function()
+                if text and text ~= "" and #text >= 2 then
+                    self:PerformSearch(frame, frame.searchBox:GetText(), frame.rankBox:GetText())
+                end
+            end, DEBOUNCE_DELAY)
+        end
+    end)
+
     -- Now set callbacks that reference the frame widgets
     searchBox:SetCallback("OnEnterPressed", function(widget)
+        -- Cancel debounce timer for immediate search
+        if searchDebounceTimer then
+            self:CancelTimer(searchDebounceTimer)
+            searchDebounceTimer = nil
+        end
         self:PerformSearch(frame, frame.searchBox:GetText(), frame.rankBox:GetText())
     end)
 
     rankBox:SetCallback("OnEnterPressed", function(widget)
+        if searchDebounceTimer then
+            self:CancelTimer(searchDebounceTimer)
+            searchDebounceTimer = nil
+        end
         self:PerformSearch(frame, frame.searchBox:GetText(), frame.rankBox:GetText())
     end)
 
     searchBtn:SetCallback("OnClick", function()
+        if searchDebounceTimer then
+            self:CancelTimer(searchDebounceTimer)
+            searchDebounceTimer = nil
+        end
         self:PerformSearch(frame, frame.searchBox:GetText(), frame.rankBox:GetText())
     end)
 
@@ -573,10 +642,12 @@ function SoundAlerter:PerformSearch(frame, searchTerm, rankFilter)
     spacer:SetFullWidth(true)
     scrollFrame:AddChild(spacer)
 
-    -- Display results (limit to 50)
+    -- Display results (limit to 50) with incremental rendering
     local displayCount = math_min(resultCount, 50)
-    for i = 1, displayCount do
-        local spell = results[i]
+    local initialBatch = math_min(10, displayCount)  -- Show first 10 immediately
+
+    -- Helper function to create spell entry
+    local function CreateSpellEntry(spell, isLast)
         local icon = select(3, GetSpellInfo(spell.spellID))
         local iconStr = icon and "\124T" .. icon .. ":20\124t " or ""
 
@@ -590,12 +661,60 @@ function SoundAlerter:PerformSearch(frame, searchTerm, rankFilter)
             ascensionID = spell.spellID
         end
 
-        -- Spell label with icon
+        -- Spell label with icon (with click-to-copy functionality)
         local rankText = spell.rankNum > 0 and ("Rank " .. spell.rankNum) or "No Rank"
+
+        -- Store spell description for shift-click
+        local spellDescription = nil
+        local tooltipText = GetSpellDescription(spell.spellID)
+        if tooltipText and tooltipText ~= "" then
+            spellDescription = tooltipText
+        end
+
+        -- Create label with click handler (shift-click for description)
         local spellLabel = AceGUI:Create("InteractiveLabel")
         spellLabel:SetText(string_format("%s|cFFFFFFFF%s|r |cFFAAAAAA(%s)|r",
             iconStr, spell.baseName, rankText))
         spellLabel:SetFullWidth(true)
+
+        -- Click handler: normal click for IDs, shift-click for description
+        spellLabel:SetCallback("OnClick", function(widget)
+            local editBox = ChatEdit_GetActiveWindow()
+
+            if IsShiftKeyDown() and spellDescription then
+                -- Shift-click: Insert spell description
+                if editBox then
+                    editBox:Insert(spellDescription)
+                    editBox:SetFocus()
+
+                    -- Visual feedback
+                    GameTooltip:SetOwner(widget.frame, "ANCHOR_CURSOR")
+                    GameTooltip:AddLine("Spell description inserted!", 0, 1, 0)
+                    GameTooltip:Show()
+                    self:ScheduleTimer(function() GameTooltip:Hide() end, 1.5)
+                else
+                    self:Print(string_format("%s: %s", spell.baseName, spellDescription))
+                end
+            else
+                -- Normal click: Insert spell name and IDs
+                if editBox then
+                    local text = string_format("%s (%s) - Retail: %d || Ascension: %d",
+                        spell.baseName, rankText, spell.spellID, ascensionID)
+                    editBox:Insert(text)
+                    editBox:SetFocus()
+
+                    -- Visual feedback
+                    GameTooltip:SetOwner(widget.frame, "ANCHOR_CURSOR")
+                    GameTooltip:AddLine("Spell IDs inserted into chat!", 0, 1, 0)
+                    GameTooltip:Show()
+                    self:ScheduleTimer(function() GameTooltip:Hide() end, 1.5)
+                else
+                    self:Print(string_format("%s (%s) - Retail: %d || Ascension: %d",
+                        spell.baseName, rankText, spell.spellID, ascensionID))
+                end
+            end
+        end)
+
         spellLabel:SetCallback("OnEnter", function(widget)
             -- Show tooltip on hover
             GameTooltip:SetOwner(widget.frame, "ANCHOR_CURSOR")
@@ -606,6 +725,11 @@ function SoundAlerter:PerformSearch(frame, searchTerm, rankFilter)
                 GameTooltip:AddLine(spell.name, 1, 1, 1)
                 GameTooltip:AddLine("Spell ID: " .. spell.spellID, 0.5, 0.5, 1)
             end
+            GameTooltip:AddLine(" ", 1, 1, 1)
+            GameTooltip:AddLine("Click: Insert spell IDs", 0.7, 0.7, 0.7)
+            if spellDescription then
+                GameTooltip:AddLine("Shift-Click: Insert spell description", 0.7, 0.7, 0.7)
+            end
             GameTooltip:Show()
         end)
         spellLabel:SetCallback("OnLeave", function()
@@ -613,20 +737,66 @@ function SoundAlerter:PerformSearch(frame, searchTerm, rankFilter)
         end)
         scrollFrame:AddChild(spellLabel)
 
-        -- ID label
-        local idLabel = AceGUI:Create("Label")
-        idLabel:SetText(string_format("     |cFFAAAAARetail ID:|r |cFF00FFFF%d|r  |  |cFFAAAAAAAAscension ID:|r |cFF00FFFF%d|r",
+        -- ID label (clickable with copy functionality)
+        local idLabel = AceGUI:Create("InteractiveLabel")
+        idLabel:SetText(string_format("     |cFFAAAAARetail ID:|r |cFF00FFFF%d|r  |  |cFFAAAAAAAAscension ID:|r |cFF00FFFF%d|r  |cFF888888(click to copy)|r",
             spell.spellID, ascensionID))
         idLabel:SetFullWidth(true)
+
+        -- Make ID label clickable to insert into active chat editbox
+        idLabel:SetCallback("OnClick", function(widget)
+            local editBox = ChatEdit_GetActiveWindow()
+            if editBox then
+                -- Insert IDs into active chat channel (escape pipe character for WoW chat)
+                local text = string_format("Retail: %d || Ascension: %d", spell.spellID, ascensionID)
+                editBox:Insert(text)
+                editBox:SetFocus()
+
+                -- Visual feedback
+                GameTooltip:SetOwner(widget.frame, "ANCHOR_CURSOR")
+                GameTooltip:AddLine("IDs inserted into chat!", 0, 1, 0)
+                GameTooltip:Show()
+                self:ScheduleTimer(function() GameTooltip:Hide() end, 1.5)
+            else
+                -- Fallback: print to default chat if no editbox active
+                self:Print(string_format("Retail: %d | Ascension: %d - %s",
+                    spell.spellID, ascensionID, spell.baseName))
+            end
+        end)
+
+        idLabel:SetCallback("OnEnter", function(widget)
+            GameTooltip:SetOwner(widget.frame, "ANCHOR_CURSOR")
+            GameTooltip:AddLine("Click to insert IDs into chat", 1, 1, 0)
+            GameTooltip:Show()
+        end)
+
+        idLabel:SetCallback("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
         scrollFrame:AddChild(idLabel)
 
         -- Spacer between entries
-        if i < displayCount then
+        if not isLast then
             local entrySpacer = AceGUI:Create("Label")
             entrySpacer:SetText(" ")
             entrySpacer:SetFullWidth(true)
             scrollFrame:AddChild(entrySpacer)
         end
+    end
+
+    -- Render first batch immediately (perceived 4x faster)
+    for i = 1, initialBatch do
+        CreateSpellEntry(results[i], i == displayCount)
+    end
+
+    -- Render remaining results in background (if any)
+    if displayCount > initialBatch then
+        self:ScheduleTimer(function()
+            for i = initialBatch + 1, displayCount do
+                CreateSpellEntry(results[i], i == displayCount)
+            end
+        end, 0.05)  -- 50ms delay (imperceptible)
     end
 
     if resultCount > 50 then

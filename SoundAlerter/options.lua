@@ -20,12 +20,10 @@ end
 function SoundAlerter:ShowConfig()
 	initOptions()
     local configName = "SoundAlerter"
-    
-    local dialogData = AceConfigDialog.OpenFrames[configName]
-    local frame = dialogData and dialogData.frame
-    
-    if frame and frame:IsVisible() then
-        frame:Hide()
+
+    local widget = AceConfigDialog.OpenFrames[configName]
+    if widget and widget.frame and widget.frame:IsVisible() then
+        widget:Hide()
     else
 	    AceConfigDialog:Open(configName)
     end
@@ -1347,6 +1345,444 @@ function SoundAlerter:OnOptionsCreate()
 		},
 	})
 
+
+	-- ===========================
+	-- RESOURCE MANAGEMENT TAB
+	-- ===========================
+	self:AddOption('ResourceBar', {
+		type = 'group',
+		name = "Resource Management",
+		desc = "Unified resource tracking for Energy, Rage, Health, and Mana bars with Combo Points. Enable the bars you need and drag them into position.",
+		order = 2.8,
+		args = {
+			introduction = {
+				type = 'description',
+				name = "**Flexible Resource Tracking**\n\n" ..
+				       "Choose which resource bars to display based on your needs. All bars are independently draggable and configurable:\n\n" ..
+				       "• **Energy Bar** - For Rogues and Druids in Cat Form\n" ..
+				       "• **Rage Bar** - For Warriors and Druids in Bear Form\n" ..
+				       "• **Health Bar** - Universal health tracking\n" ..
+				       "• **Mana Bar** - For casters and healers\n" ..
+				       "• **Combo Points** - For Rogues and Druids (with optional text display)\n\n" ..
+				       "*Unlock bars to drag them into position. Positions persist through /reload and client restarts.*",
+				fontSize = "medium",
+				order = 0.5,
+			},
+
+			generalGroup = {
+				type = 'group',
+				inline = true,
+				name = "1. General Settings",
+				order = 1,
+				args = {
+					lockToggle = {
+						type = 'toggle',
+						name = "Lock Bars",
+						desc = "Lock all resource bars in place. Unlock to drag and reposition.",
+						get = function() return SoundAlerter.db1.profile.resourceBar.locked end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.locked = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:SetLocked(value)
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+				barTexture = {
+					type = 'select',
+					name = "Bar Texture",
+					desc = "Choose the visual texture for all resource bars (Health, Mana, Energy, Rage). This provides a unified look across all bars.",
+					values = {
+						default = "Default (WoW StatusBar)",
+						solid = "Solid (Clean Fill)",
+						transparent = "Transparent (Semi-Opaque)",
+					},
+					get = function() return SoundAlerter.db1.profile.resourceBar.barTexture end,
+					set = function(info, value)
+						SoundAlerter.db1.profile.resourceBar.barTexture = value
+						if SoundAlerter.ResourceBar then
+							SoundAlerter.ResourceBar:ApplyBarTexture()
+						end
+					end,
+					width = "full",
+					order = 2,
+				},
+				},
+			},
+
+			energyGroup = {
+				type = 'group',
+				inline = true,
+				name = "2. Energy Bar",
+				order = 2,
+				args = {
+					energyEnabled = {
+						type = 'toggle',
+						name = "Show Energy Bar",
+						desc = "Display energy bar (for Rogues, Druids in Cat Form).",
+						get = function() return SoundAlerter.db1.profile.resourceBar.energyEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.energyEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					energyScale = {
+						type = 'range',
+						name = "Energy Bar Scale",
+						desc = "Adjust the size of the energy bar.",
+						min = 0.5,
+						max = 2.0,
+						step = 0.05,
+						get = function() return SoundAlerter.db1.profile.resourceBar.energyScale end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.energyScale = value
+							if SoundAlerter.ResourceBar and SoundAlerter.ResourceBar.energyFrame then
+								SoundAlerter.ResourceBar.energyFrame:SetScale(value)
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.energyEnabled end,
+						width = "full",
+						order = 2,
+					},
+					energyColor = {
+						type = 'color',
+						name = "Energy Color",
+						desc = "Color of the energy bar.",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.energyColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.energyColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateEnergyBar()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.energyEnabled end,
+						order = 3,
+					},
+				},
+			},
+
+			rageGroup = {
+				type = 'group',
+				inline = true,
+				name = "3. Rage Bar",
+				order = 3,
+				args = {
+					rageEnabled = {
+						type = 'toggle',
+						name = "Show Rage Bar",
+						desc = "Display rage bar (for Warriors, Druids in Bear Form).",
+						get = function() return SoundAlerter.db1.profile.resourceBar.rageEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.rageEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					rageScale = {
+						type = 'range',
+						name = "Rage Bar Scale",
+						desc = "Adjust the size of the rage bar.",
+						min = 0.5,
+						max = 2.0,
+						step = 0.05,
+						get = function() return SoundAlerter.db1.profile.resourceBar.rageScale end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.rageScale = value
+							if SoundAlerter.ResourceBar and SoundAlerter.ResourceBar.rageFrame then
+								SoundAlerter.ResourceBar.rageFrame:SetScale(value)
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.rageEnabled end,
+						width = "full",
+						order = 2,
+					},
+					rageColor = {
+						type = 'color',
+						name = "Rage Color",
+						desc = "Color of the rage bar.",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.rageColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.rageColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateRageBar()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.rageEnabled end,
+						order = 3,
+					},
+				},
+			},
+
+			healthGroup = {
+				type = 'group',
+				inline = true,
+				name = "4. Health Bar",
+				order = 4,
+				args = {
+					healthEnabled = {
+						type = 'toggle',
+						name = "Show Health Bar",
+						desc = "Display health bar.",
+						get = function() return SoundAlerter.db1.profile.resourceBar.healthEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.healthEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					healthScale = {
+						type = 'range',
+						name = "Health Bar Scale",
+						desc = "Adjust the size of the health bar.",
+						min = 0.5,
+						max = 2.0,
+						step = 0.05,
+						get = function() return SoundAlerter.db1.profile.resourceBar.healthScale end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.healthScale = value
+							if SoundAlerter.ResourceBar and SoundAlerter.ResourceBar.healthFrame then
+								SoundAlerter.ResourceBar.healthFrame:SetScale(value)
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.healthEnabled end,
+						width = "full",
+						order = 2,
+					},
+					healthHeight = {
+						type = 'range',
+						name = "Health Bar Height",
+						desc = "Adjust the height of the health bar.",
+						min = 10,
+						max = 40,
+						step = 1,
+						get = function() return SoundAlerter.db1.profile.resourceBar.healthHeight end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.healthHeight = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.healthEnabled end,
+						width = "full",
+						order = 3,
+					},
+					healthColor = {
+						type = 'color',
+						name = "Health Color",
+						desc = "Color of the health bar.",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.healthColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.healthColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateHealthBar()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.healthEnabled end,
+						order = 4,
+					},
+				},
+			},
+
+			manaGroup = {
+				type = 'group',
+				inline = true,
+				name = "5. Mana Bar",
+				order = 5,
+				args = {
+					manaEnabled = {
+						type = 'toggle',
+						name = "Show Mana Bar",
+						desc = "Display mana bar (for casters).",
+						get = function() return SoundAlerter.db1.profile.resourceBar.manaEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.manaEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					manaScale = {
+						type = 'range',
+						name = "Mana Bar Scale",
+						desc = "Adjust the size of the mana bar.",
+						min = 0.5,
+						max = 2.0,
+						step = 0.05,
+						get = function() return SoundAlerter.db1.profile.resourceBar.manaScale end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.manaScale = value
+							if SoundAlerter.ResourceBar and SoundAlerter.ResourceBar.manaFrame then
+								SoundAlerter.ResourceBar.manaFrame:SetScale(value)
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.manaEnabled end,
+						width = "full",
+						order = 2,
+					},
+					manaColor = {
+						type = 'color',
+						name = "Mana Color",
+						desc = "Color of the mana bar.",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.manaColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.manaColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateManaBar()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.manaEnabled end,
+						order = 3,
+					},
+				},
+			},
+
+			comboGroup = {
+				type = 'group',
+				inline = true,
+				name = "6. Combo Points",
+				order = 6,
+				args = {
+					comboEnabled = {
+						type = 'toggle',
+						name = "Show Combo Points",
+						desc = "Display combo points (for Rogues, Druids in Cat Form).",
+						get = function() return SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.comboEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					comboScale = {
+						type = 'range',
+						name = "Combo Points Scale",
+						desc = "Adjust the size of the combo points.",
+						min = 0.5,
+						max = 2.0,
+						step = 0.05,
+						get = function() return SoundAlerter.db1.profile.resourceBar.comboScale end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.comboScale = value
+							if SoundAlerter.ResourceBar and SoundAlerter.ResourceBar.comboFrame then
+								SoundAlerter.ResourceBar.comboFrame:SetScale(value)
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+						width = "full",
+						order = 2,
+					},
+				comboStyle = {
+					type = 'select',
+					name = "Combo Point Shape",
+					desc = "Choose the visual shape for combo points.",
+					values = {
+						circle = "Circle",
+						square = "Square",
+					},
+					get = function() return SoundAlerter.db1.profile.resourceBar.comboStyle end,
+					set = function(info, value)
+						SoundAlerter.db1.profile.resourceBar.comboStyle = value
+						if SoundAlerter.ResourceBar then
+							SoundAlerter.ResourceBar:ApplyCPStyle()
+						end
+					end,
+					disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+					width = "full",
+					order = 2.5,
+				},
+					comboTextEnabled = {
+						type = 'toggle',
+						name = "Show Combo Text",
+						desc = "Display combo points as text (e.g., '3/5').",
+						get = function() return SoundAlerter.db1.profile.resourceBar.comboTextEnabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.resourceBar.comboTextEnabled = value
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateVisibility()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+						width = "full",
+						order = 3,
+					},
+					comboActiveColor = {
+						type = 'color',
+						name = "Active Combo Color",
+						desc = "Color of active combo points (1-4).",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.comboActiveColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.comboActiveColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateComboPoints()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+						order = 4,
+					},
+					comboMaxColor = {
+						type = 'color',
+						name = "Max Combo Color",
+						desc = "Color of combo points at maximum (5).",
+						get = function()
+							local c = SoundAlerter.db1.profile.resourceBar.comboMaxColor
+							return c.r, c.g, c.b
+						end,
+						set = function(info, r, g, b)
+							SoundAlerter.db1.profile.resourceBar.comboMaxColor = {r = r, g = g, b = b}
+							if SoundAlerter.ResourceBar then
+								SoundAlerter.ResourceBar:UpdateComboPoints()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+						order = 5,
+					},
+				fullCPSound = {
+					type = 'toggle',
+					name = "5 CP Sound",
+					desc = "Play a satisfying chime when reaching 5 combo points.",
+					get = function() return SoundAlerter.db1.profile.resourceBar.fullCPSound end,
+					set = function(info, value)
+						SoundAlerter.db1.profile.resourceBar.fullCPSound = value
+					end,
+					disabled = function() return not SoundAlerter.db1.profile.resourceBar.comboEnabled end,
+					width = "full",
+					order = 6,
+				},
+				},
+			},
+		},
+	})
 	-- ===========================
 	-- VOICE ALERTS TAB (SLC: Lovable)
 	-- ===========================
@@ -2248,6 +2684,23 @@ function SoundAlerter:OnOptionsCreate()
 						name = "\n|cffFFD700Quick Tip:|r Press |cffFFFFFFEnter|r to search, hover results for tooltips\n",
 						fontSize = "small",
 						order = 3,
+					},
+					autoSearch = {
+						type = 'toggle',
+						name = "Auto-Search As You Type",
+						desc = "Enable auto-search with 200ms debounce. When enabled, searches automatically as you type (minimum 2 characters). Press Enter to search immediately.",
+						width = "full",
+						order = 4,
+						get = function(info)
+							return SoundAlerter.db1.profile.findSpell and SoundAlerter.db1.profile.findSpell.autoSearch or false
+						end,
+						set = function(info, value)
+							if not SoundAlerter.db1.profile.findSpell then
+								SoundAlerter.db1.profile.findSpell = {}
+							end
+							SoundAlerter.db1.profile.findSpell.autoSearch = value
+							SoundAlerter:Print(value and "|cFF00FF00Auto-search enabled|r" or "|cFFFF0000Auto-search disabled|r")
+						end,
 					},
 				},
 			},

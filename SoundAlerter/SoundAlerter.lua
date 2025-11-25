@@ -64,15 +64,19 @@ local function log(msg) DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF22SA|r:"..msg) en
 
 function SoundAlerter:ChangeProfile()
 	sadb = self.db1.profile
+
 	for k,v in SoundAlerter:IterateModules() do
 		if type(v.ChangeProfile) == 'function' then
 			v:ChangeProfile()
 		end
 	end
 
-	-- Reinitialize toast system with new profile settings
 	if self.ProximityToasts then
 		self.ProximityToasts:OnProfileChanged()
+	end
+
+	if self.ResourceBar then
+		self.ResourceBar:OnProfileChanged()
 	end
 end
 
@@ -418,6 +422,68 @@ function SoundAlerter:MinimapButton_OnDragStop(self)
     }
 end
 
+function SoundAlerter:MigrateResourceBarSettings()
+    local db = self.db1.profile.resourceBar
+
+    if db.enabled ~= nil and not db.druid then
+        self:Print("|cffFF7D0ASoundAlerter|r: Migrating Resource Bar settings to multi-class structure...")
+
+        db.druid = {
+            cat = {
+                enabled = db.enabled,
+                locked = db.locked or false,
+                showEnergyBar = true,
+                showComboPoints = db.showComboPoints or true,
+                showHealthBar = db.showHealthBar or false,
+
+                powerPositionX = db.energyPositionX or 0,
+                powerPositionY = db.energyPositionY or -120,
+                cpPositionX = db.cpPositionX or 0,
+                cpPositionY = db.cpPositionY or -85,
+                healthPositionX = db.healthPositionX or 0,
+                healthPositionY = db.healthPositionY or -140,
+
+                powerScale = db.energyScale or 1.0,
+                cpScale = db.cpScale or 1.0,
+                healthBarScale = db.healthBarScale or 1.0,
+                healthBarHeight = db.healthBarHeight or 20,
+
+                powerTexture = db.energyTexture or "Interface\\TargetingFrame\\UI-StatusBar",
+                cpStyle = db.cpStyle or "square",
+                showCPText = db.showCPText or true,
+                cpTextPosition = db.cpTextPosition or "bottom",
+
+                energyColor = db.energyColor or {r = 1, g = 1, b = 0.2},
+                energyLowColor = db.energyLowColor or {r = 1, g = 0.3, b = 0},
+                cpActiveColor = db.cpActiveColor or {r = 0.2, g = 1, b = 0.2},
+                cpMaxColor = db.cpMaxColor or {r = 1, g = 0.8, b = 0.2},
+                cpInactiveColor = db.cpInactiveColor or {r = 0.25, g = 0.25, b = 0.25},
+                healthColor = db.healthColor or {r = 0.2, g = 1, b = 0.2},
+
+                lowEnergyThreshold = db.lowEnergyThreshold or 15,
+                showOverCapAlert = db.showOverCapAlert or true,
+                showLowEnergyAlert = db.showLowEnergyAlert or true,
+
+                smoothPower = db.smoothEnergy or false,
+                cpAnimations = db.cpAnimations or true,
+                fullCPAnimation = db.fullCPAnimation or true,
+            },
+            bear = dbDefaults.profile.resourceBar.druid.bear,
+            caster = dbDefaults.profile.resourceBar.druid.caster,
+        }
+        db.rogue = dbDefaults.profile.resourceBar.rogue
+        db.warrior = dbDefaults.profile.resourceBar.warrior
+
+        for k in pairs(db) do
+            if k ~= "druid" and k ~= "rogue" and k ~= "warrior" then
+                db[k] = nil
+            end
+        end
+
+        self:Print("|cffFF7D0ASoundAlerter|r: Migration complete! Your settings have been preserved.")
+    end
+end
+
 function SoundAlerter:OnInitialize()
     if SoundAlerterSpells then
         self.spellList = SoundAlerterSpells
@@ -434,7 +500,9 @@ function SoundAlerter:OnInitialize()
 
     self.db1 = LibStub("AceDB-3.0"):New("SoundAlerterDB", dbDefaults, "Default");
     sadb = self.db1.profile
-    
+
+    self:MigrateResourceBarSettings()
+
     self.db1.RegisterCallback(self, "OnProfileChanged", "ChangeProfile")
     self.db1.RegisterCallback(self, "OnProfileCopied", "ChangeProfile")
     self.db1.RegisterCallback(self, "OnProfileReset", "ChangeProfile")
@@ -513,6 +581,11 @@ function SoundAlerter:OnEnable()
     -- Initialize proximity toast system
     if self.ProximityToasts then
         self.ProximityToasts:Initialize()
+    end
+
+    -- Initialize resource bar system (Feral Druid)
+    if self.ResourceBar then
+        self.ResourceBar:Initialize()
     end
 
     self:ScheduleRepeatingTimer("CleanupProximityCaches", 30)

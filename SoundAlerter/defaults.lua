@@ -16,6 +16,19 @@ dbDefaults = {
 		objectiveAlertsEnabled = false,
 
 		-- ===========================
+		-- Spell Finder Settings
+		-- ===========================
+		findSpell = {
+			autoSearch = false,  -- Auto-search as you type (200ms debounce)
+		},
+
+		-- ===========================
+		-- Minimap Button
+		-- ===========================
+		MinimapButtonPosition = nil,  -- Saved when user drags button
+		MinimapButtonHidden = false,
+
+		-- ===========================
 		-- Zone Settings
 		-- ===========================
 		all = false,
@@ -175,6 +188,72 @@ dbDefaults = {
 		},
 
 		-- ===========================
+		-- Multi-Class Resource Bar Settings
+		-- ===========================
+		resourceBar = {
+			locked = false,
+
+			energyEnabled = false,
+			energyPositionX = 0,
+			energyPositionY = -120,
+			energyScale = 1.0,
+			energyTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+			energyColor = {r = 1, g = 1, b = 0.2},
+			energyLowColor = {r = 1, g = 0.3, b = 0},
+			lowEnergyThreshold = 15,
+			showOverCapAlert = true,
+			showLowEnergyAlert = true,
+
+			rageEnabled = false,
+			ragePositionX = 0,
+			ragePositionY = -120,
+			rageScale = 1.0,
+			rageTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+			rageColor = {r = 1, g = 0.2, b = 0.2},
+			rageLowColor = {r = 0.8, g = 0.1, b = 0.1},
+			lowRageThreshold = 20,
+			showLowRageAlert = false,
+
+			healthEnabled = false,
+			healthPositionX = 0,
+			healthPositionY = -140,
+			healthScale = 1.0,
+			healthHeight = 20,
+			healthTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+			healthColor = {r = 0.2, g = 1, b = 0.2},
+
+			manaEnabled = false,
+			manaPositionX = 0,
+			manaPositionY = -100,
+			manaScale = 1.0,
+			manaTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+			manaColor = {r = 0.2, g = 0.5, b = 1},
+			manaLowColor = {r = 0.1, g = 0.3, b = 0.8},
+			lowManaThreshold = 20,
+			showLowManaAlert = false,
+
+			comboEnabled = false,
+			comboPositionX = 0,
+			comboPositionY = -85,
+			comboScale = 1.0,
+			comboStyle = "circle",
+			comboActiveColor = {r = 0.2, g = 1, b = 0.2},
+			comboMaxColor = {r = 1, g = 0.8, b = 0.2},
+			comboInactiveColor = {r = 0.25, g = 0.25, b = 0.25},
+
+			comboTextEnabled = false,
+			comboTextPositionX = 0,
+			comboTextPositionY = -50,
+
+			smoothPower = false,
+			cpAnimations = true,
+			fullCPAnimation = true,
+			fullCPSound = false,
+
+			barTexture = "default",
+		},
+
+		-- ===========================
 		-- Battleground Alert Settings
 		-- ===========================
 		battlegroundAlertsEnabled = false,  -- Disabled by default (opt-in)
@@ -225,6 +304,6 @@ dbDefaults = {
 		persistentCacheMaxAge = 2592000,  -- 30 days in seconds
 		learnedClassesMaxSize = 5000,
 		negativeCacheEnabled = true,
-		negativeCacheTTL = 5,  -- seconds
+		negativeCacheTTL = 5,
 	}
 }

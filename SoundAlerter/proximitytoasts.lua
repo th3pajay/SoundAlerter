@@ -421,9 +421,14 @@ function ProximityToasts:ReleaseToast(toast)
     toast.cachedSegmentData = nil
 
     if toast.secureButton then
-        toast.secureButton:Hide()
-        toast.secureButton:SetAttribute("macrotext1", nil)
-        toast.secureButton:SetAttribute("shift-macrotext1", nil)
+        if not InCombatLockdown() then
+            toast.secureButton:Hide()
+            toast.secureButton:SetAttribute("macrotext1", nil)
+            toast.secureButton:SetAttribute("shift-macrotext1", nil)
+        else
+            -- In combat: can only Hide() - defer attribute cleanup until next out-of-combat release
+            toast.secureButton:Hide()
+        end
     end
 
     if toast.countdownBar and toast.countdownBar.segments then
@@ -526,17 +531,21 @@ function ProximityToasts:CopyToastData(oldFrame, newFrame)
     newFrame:SetBackdropBorderColor(r, g, b, a)
 
     if newFrame.secureButton and oldFrame.userData.unitName then
-        local sadb = SoundAlerter.db1.profile
-        local safeUnitName = SanitizeMacroText(oldFrame.userData.unitName)
-        newFrame.secureButton:SetAttribute("type1", "macro")
-        newFrame.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
+        if not InCombatLockdown() then
+            local sadb = SoundAlerter.db1.profile
+            local safeUnitName = SanitizeMacroText(oldFrame.userData.unitName)
+            newFrame.secureButton:SetAttribute("type1", "macro")
+            newFrame.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
 
-        if sadb.proximityToasts.enableFocusTarget then
-            newFrame.secureButton:SetAttribute("shift-type1", "macro")
-            newFrame.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
+            if sadb.proximityToasts.enableFocusTarget then
+                newFrame.secureButton:SetAttribute("shift-type1", "macro")
+                newFrame.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
+            end
+
+            newFrame.secureButton:Show()
+        elseif SoundAlerter.db1.profile.debugmode then
+            SoundAlerter:Print("[ProximityToasts] CopyToastData: Skipped secure config (in combat - should never happen)")
         end
-
-        newFrame.secureButton:Show()
     end
 
     newFrame.inUse = true
@@ -796,16 +805,20 @@ function ProximityToasts:ShowToast(unitName, className, distance, guid, level, u
     end
 
     if toast.secureButton and unitName then
-        local safeUnitName = SanitizeMacroText(unitName)
-        toast.secureButton:SetAttribute("type1", "macro")
-        toast.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
+        if not self.inCombat then
+            local safeUnitName = SanitizeMacroText(unitName)
+            toast.secureButton:SetAttribute("type1", "macro")
+            toast.secureButton:SetAttribute("macrotext1", "/target " .. safeUnitName)
 
-        if sadb.proximityToasts.enableFocusTarget then
-            toast.secureButton:SetAttribute("shift-type1", "macro")
-            toast.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
+            if sadb.proximityToasts.enableFocusTarget then
+                toast.secureButton:SetAttribute("shift-type1", "macro")
+                toast.secureButton:SetAttribute("shift-macrotext1", "/target " .. safeUnitName .. "\n/focus target")
+            end
+
+            toast.secureButton:Show()
+        elseif sadb.debugmode then
+            SoundAlerter:Print("[ProximityToasts] Skipped secure button config (in combat)")
         end
-
-        toast.secureButton:Show()
     end
 
     toast.creationTime = GetTime()
