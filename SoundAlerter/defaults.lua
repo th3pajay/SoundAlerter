@@ -305,5 +305,53 @@ dbDefaults = {
 		learnedClassesMaxSize = 5000,
 		negativeCacheEnabled = true,
 		negativeCacheTTL = 5,
+
+		-- ===========================
+		-- Alert Statistics Settings
+		-- ===========================
+		statistics = {
+			-- Feature toggle
+			enabled = true,
+
+			-- Session statistics (reset on login/reload)
+			session = {
+				totalAlerts = 0,
+				startTime = 0,  -- GetTime() when session started
+				byCategory = {
+					spellAlerts = 0,
+					proximityAlerts = 0,
+					trinketAlerts = 0,
+					flagAlerts = 0,
+				},
+			},
+
+			-- Persistent statistics (all-time)
+			allTime = {
+				totalAlerts = 0,
+				totalSessions = 0,
+
+				-- Top spells tracking (limited to maxTopSpells)
+				topSpells = {},  -- [spellID] = { count, lastSeen, name }
+
+				-- Category breakdown
+				byCategory = {
+					spellAlerts = 0,
+					proximityAlerts = 0,
+					trinketAlerts = 0,
+					flagAlerts = 0,
+				},
+
+				-- Zone breakdown
+				byZone = {
+					arena = 0,
+					battleground = 0,
+					worldPvP = 0,
+				},
+			},
+
+			-- Configuration
+			maxTopSpells = 50,  -- Limit top spells to prevent memory bloat (LRU eviction)
+			trackingStartTime = 0,  -- time() when tracking first enabled
+		},
 	}
 }

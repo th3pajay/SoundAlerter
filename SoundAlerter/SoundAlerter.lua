@@ -78,6 +78,53 @@ function SoundAlerter:ChangeProfile()
 	if self.ResourceBar then
 		self.ResourceBar:OnProfileChanged()
 	end
+
+	if self.FlagAlerts then
+		self.FlagAlerts:OnProfileChanged()
+	end
+
+	-- Re-initialize statistics for new profile
+	if sadb.statistics and sadb.statistics.enabled then
+		self:InitializeStatistics()
+	end
+end
+
+function SoundAlerter:OnProfileCopied(event, db, sourceProfileKey)
+	-- Call standard profile change handler
+	self:ChangeProfile()
+
+	-- Reset statistics for copied profile (stats don't make sense when copied)
+	if sadb.statistics then
+		sadb.statistics.session = {
+			totalAlerts = 0,
+			startTime = GetTime(),
+			byCategory = {
+				spellAlerts = 0,
+				proximityAlerts = 0,
+				trinketAlerts = 0,
+				flagAlerts = 0,
+			},
+		}
+		sadb.statistics.allTime = {
+			totalAlerts = 0,
+			totalSessions = 0,
+			topSpells = {},
+			byCategory = {
+				spellAlerts = 0,
+				proximityAlerts = 0,
+				trinketAlerts = 0,
+				flagAlerts = 0,
+			},
+			byZone = {
+				arena = 0,
+				battleground = 0,
+				worldPvP = 0,
+			},
+		}
+		sadb.statistics.trackingStartTime = time()
+
+		self:Print("Statistics reset for copied profile (settings copied, but stats start fresh)")
+	end
 end
 
 function SoundAlerter:AddOption(key, table)
@@ -504,7 +551,7 @@ function SoundAlerter:OnInitialize()
     self:MigrateResourceBarSettings()
 
     self.db1.RegisterCallback(self, "OnProfileChanged", "ChangeProfile")
-    self.db1.RegisterCallback(self, "OnProfileCopied", "ChangeProfile")
+    self.db1.RegisterCallback(self, "OnProfileCopied", "OnProfileCopied")
     self.db1.RegisterCallback(self, "OnProfileReset", "ChangeProfile")
     
     self:RegisterChatCommand("SoundAlerter", "HandleCommand")
@@ -588,6 +635,16 @@ function SoundAlerter:OnEnable()
         self.ResourceBar:Initialize()
     end
 
+    -- Initialize battleground flag alerts system
+    if self.FlagAlerts then
+        if sadb.battlegroundAlertsEnabled then
+            self.FlagAlerts:Enable()
+        end
+    end
+
+    -- Initialize statistics tracking
+    self:InitializeStatistics()
+
     self:ScheduleRepeatingTimer("CleanupProximityCaches", 30)
     self:ScheduleRepeatingTimer("SaveLearnedClasses", 60)
 
@@ -604,6 +661,11 @@ end
 
 function SoundAlerter:PlayTrinket()
     PlaySoundFile(sadb.sapath.."Trinket.mp3");
+
+    -- Record statistics for trinket alerts
+    if sadb.statistics and sadb.statistics.enabled then
+        self:RecordAlert("trinketAlerts")
+    end
 end
 
 function SoundAlerter:Interrupted()
@@ -615,6 +677,150 @@ function SoundAlerter:PlaySpell(list, spellID, ...)
         if not sadb[list[spellID]] then return end
         if sadb.debugmode then print("<SA> DEBUG: Playing sound file: "..list[spellID]..".mp3"); end
         PlaySoundFile(sadb.sapath..list[spellID]..".mp3");
+
+        -- Record statistics for spell alerts
+        if sadb.statistics and sadb.statistics.enabled then
+            self:RecordAlert("spellAlerts", spellID)
+        end
+    end
+end
+
+-- ===========================
+-- Statistics Tracking Functions
+-- ===========================
+
+function SoundAlerter:RecordAlert(category, spellID)
+    if not sadb.statistics or not sadb.statistics.enabled then return end
+
+    -- Increment session counters
+    sadb.statistics.session.totalAlerts = (sadb.statistics.session.totalAlerts or 0) + 1
+    sadb.statistics.session.byCategory[category] = (sadb.statistics.session.byCategory[category] or 0) + 1
+
+    -- Increment all-time counters
+    sadb.statistics.allTime.totalAlerts = (sadb.statistics.allTime.totalAlerts or 0) + 1
+    sadb.statistics.allTime.byCategory[category] = (sadb.statistics.allTime.byCategory[category] or 0) + 1
+
+    -- Increment zone counter
+    local zoneType = self:GetCurrentZoneType()
+    if zoneType then
+        sadb.statistics.allTime.byZone[zoneType] = (sadb.statistics.allTime.byZone[zoneType] or 0) + 1
+    end
+
+    -- Update top spells (if spell ID provided)
+    if spellID and category == "spellAlerts" then
+        self:UpdateTopSpells(spellID)
+    end
+
+    if sadb.debugmode then
+        print(string.format("<SA> STATS: Recorded %s alert (Total: %d)", category, sadb.statistics.session.totalAlerts))
+    end
+end
+
+function SoundAlerter:UpdateTopSpells(spellID)
+    if not sadb.statistics or not spellID then return end
+
+    local topSpells = sadb.statistics.allTime.topSpells
+    local maxSpells = sadb.statistics.maxTopSpells or 50
+
+    -- Update or insert spell
+    if topSpells[spellID] then
+        -- Existing spell - increment count
+        topSpells[spellID].count = topSpells[spellID].count + 1
+        topSpells[spellID].lastSeen = time()
+    else
+        -- New spell - check if we need to evict
+        local count = 0
+        for _ in pairs(topSpells) do count = count + 1 end
+
+        if count >= maxSpells then
+            -- Find least recently used spell
+            local oldestSpellID, oldestTime = nil, math.huge
+            for sID, data in pairs(topSpells) do
+                if data.lastSeen < oldestTime then
+                    oldestTime = data.lastSeen
+                    oldestSpellID = sID
+                end
+            end
+
+            -- Evict oldest spell
+            if oldestSpellID then
+                topSpells[oldestSpellID] = nil
+                if sadb.debugmode then
+                    print(string.format("<SA> STATS: Evicted spell %d (LRU)", oldestSpellID))
+                end
+            end
+        end
+
+        -- Insert new spell
+        local spellName = GetSpellInfo(spellID) or "Unknown Spell"
+        topSpells[spellID] = {
+            count = 1,
+            lastSeen = time(),
+            name = spellName,
+        }
+    end
+end
+
+function SoundAlerter:GetCurrentZoneType()
+    -- Determine current zone type for statistics
+    local inInstance, instanceType = IsInInstance()
+
+    if instanceType == "arena" then
+        return "arena"
+    elseif instanceType == "pvp" then
+        return "battleground"
+    elseif sadb.field then
+        -- World PvP
+        return "worldPvP"
+    end
+
+    return nil
+end
+
+function SoundAlerter:FormatTimeAgo(timestamp)
+    if not timestamp or timestamp == 0 then return "Never" end
+
+    local diff = time() - timestamp
+
+    if diff < 60 then
+        return "Just now"
+    elseif diff < 3600 then
+        local minutes = math.floor(diff / 60)
+        return minutes .. " min" .. (minutes > 1 and "s" or "") .. " ago"
+    elseif diff < 86400 then
+        local hours = math.floor(diff / 3600)
+        return hours .. " hour" .. (hours > 1 and "s" or "") .. " ago"
+    else
+        local days = math.floor(diff / 86400)
+        return days .. " day" .. (days > 1 and "s" or "") .. " ago"
+    end
+end
+
+function SoundAlerter:InitializeStatistics()
+    -- Initialize session statistics
+    if sadb.statistics and sadb.statistics.enabled then
+        sadb.statistics.session = {
+            totalAlerts = 0,
+            startTime = GetTime(),
+            byCategory = {
+                spellAlerts = 0,
+                proximityAlerts = 0,
+                trinketAlerts = 0,
+                flagAlerts = 0,
+            },
+        }
+
+        -- Increment session counter
+        sadb.statistics.allTime.totalSessions = (sadb.statistics.allTime.totalSessions or 0) + 1
+
+        -- Set tracking start time if not set
+        if not sadb.statistics.trackingStartTime or sadb.statistics.trackingStartTime == 0 then
+            sadb.statistics.trackingStartTime = time()
+        end
+
+        if sadb.debugmode then
+            self:Print(string.format("Statistics initialized (Session #%d)", sadb.statistics.allTime.totalSessions))
+        end
     end
 end
 
@@ -1472,6 +1678,11 @@ function SoundAlerter:CheckProximityAlert(unit)
         self:ScheduleTimer(function()
             PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
         end, 0.8)
+
+        -- Record statistics for proximity alerts
+        if sadb.statistics and sadb.statistics.enabled then
+            self:RecordAlert("proximityAlerts")
+        end
     end
 
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then
@@ -1557,6 +1768,11 @@ function SoundAlerter:CheckProximityAlertFromCombatLog(guid, name, flags)
         self:ScheduleTimer(function()
             PlaySoundFile(sadb.sapath .. "detected.mp3", "Master")
         end, 0.8)
+    end
+
+    -- Record statistics for proximity alerts (combat log-based)
+    if sadb.statistics and sadb.statistics.enabled then
+        self:RecordAlert("proximityAlerts")
     end
 
     if sadb.proximityToasts and sadb.proximityToasts.enabled and self.ProximityToasts then

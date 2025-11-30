@@ -2,7 +2,7 @@
 ## Title: SoundAlerter
 ## Notes: Voice alerts and chat announcements for critical PvP spells (CC, interrupts, cooldowns).
 ## Author: Trolololol, Abatorlos of Spinebreaker, Duskashes, Superk, th3pajay
-## Version: 1.4.4
+## Version: 1.4.56
 ## SavedVariables: SoundAlerterDB, SoundAlerterSpellDB
 ## X-License: MIT
 ## X-Website: https://github.com/th3pajay/SoundAlerter

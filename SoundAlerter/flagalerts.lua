@@ -59,14 +59,23 @@ local CACHE_SIZE_MEDIUM = 50     -- 15v15, 20v20 (small raids)
 local CACHE_SIZE_LARGE = 120     -- 40v40 AV/EOTS (large raids)
 
 -- WoW Ascension Mixed-Faction Team Buffs
-local TEAM_ALLIANCE_BUFF = 86475 -- Team Alliance assignment buff
-local TEAM_HORDE_BUFF = 86476    -- Team Horde assignment buff
+-- Note: Ascension may use 11-prefixed IDs like other spells (see spellist.lua:461-490)
+local TEAM_ALLIANCE_BUFF = 86475     -- Team Alliance assignment buff
+local TEAM_HORDE_BUFF = 86476        -- Team Horde assignment buff
+local TEAM_ALLIANCE_BUFF_11 = 11086475  -- Ascension 11-prefixed variant
+local TEAM_HORDE_BUFF_11 = 11086476     -- Ascension 11-prefixed variant
 
 -- WSG Flag Carrier Auras (Primary detection method)
 -- Key insight: The aura ID tells us which TEAM the carrier is on!
+-- ASCENSION COMPATIBILITY: Support both retail and 11-prefixed spell IDs
 local FLAG_CARRIER_AURAS = {
-    [23333] = "ALLIANCE_TEAM",  -- Alliance player holding Horde flag
-    [23335] = "HORDE_TEAM",     -- Horde player holding Alliance flag
+    -- Retail/Standard IDs
+    [23333] = "ALLIANCE_TEAM",   -- Alliance player holding Horde flag
+    [23335] = "HORDE_TEAM",      -- Horde player holding Alliance flag
+
+    -- Ascension 11-prefixed IDs (same pattern as spellist.lua auto-registration)
+    [1123333] = "ALLIANCE_TEAM", -- Ascension: Alliance holding Horde flag
+    [1123335] = "HORDE_TEAM",    -- Ascension: Horde holding Alliance flag
 }
 
 -- Hash table for O(1) combat log event filtering
@@ -81,7 +90,8 @@ local RELEVANT_COMBAT_EVENTS = {
     ["SPELL_PERIODIC_HEAL"] = true,
     ["SPELL_CAST_START"] = true,
     ["SPELL_CAST_SUCCESS"] = true,
-    ["SPELL_AURA_APPLIED"] = true,  -- Track team assignment buffs
+    ["SPELL_AURA_APPLIED"] = true,   -- Track flag pickups and team assignment buffs
+    ["SPELL_AURA_REMOVED"] = true,   -- CRITICAL FIX: Track flag drops (was missing!)
 }
 
 -- ========================================
@@ -238,6 +248,30 @@ function FlagAlerts:OnDisable()
     end
 end
 
+function FlagAlerts:OnProfileChanged()
+    -- Update local database reference to new profile
+    sadb = SoundAlerter.db1.profile
+
+    -- Update persistent cache references
+    self.persistentCache = sadb.persistentClassCache
+    self.teamCache = sadb.persistentTeamCache
+
+    -- Re-enable or disable based on new profile settings
+    local wasEnabled = self:IsEnabled()
+    local shouldBeEnabled = sadb.battlegroundAlertsEnabled
+
+    if shouldBeEnabled and not wasEnabled then
+        self:Enable()
+    elseif not shouldBeEnabled and wasEnabled then
+        self:Disable()
+    end
+
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts] Profile changed - %s",
+            shouldBeEnabled and "ENABLED" or "DISABLED"))
+    end
+end
+
 -- ========================================
 -- EVENT HANDLERS
 -- ========================================
@@ -289,18 +323,29 @@ function FlagAlerts:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, subevent, ...)
     if subevent == "SPELL_AURA_APPLIED" then
         local spellID = select(9, ...)
 
+        -- ENHANCED DEBUG: Log all aura applications to help identify spell IDs
+        if sadb.debugmode then
+            SoundAlerter:Print(string_format("[FlagAlerts DEBUG] SPELL_AURA_APPLIED - SpellID: %d | Dest: %s | GUID: %s",
+                spellID or 0, destName or "nil", destGUID or "nil"))
+        end
+
         -- PRIMARY DETECTION: Flag carrier auras (most reliable)
         -- The aura ID directly tells us which team the carrier is on!
         local carrierTeam = FLAG_CARRIER_AURAS[spellID]
         if carrierTeam and destName then
+            if sadb.debugmode then
+                SoundAlerter:Print(string_format("[FlagAlerts DEBUG] ✓ FLAG PICKUP DETECTED - SpellID: %d | Player: %s | Team: %s",
+                    spellID, destName, carrierTeam))
+            end
             self:HandleFlagPickup(destName, destGUID, carrierTeam)
             return  -- Early exit, flag event processed
         end
 
-        -- Check for team assignment buffs
-        if spellID == TEAM_ALLIANCE_BUFF or spellID == TEAM_HORDE_BUFF then
+        -- Check for team assignment buffs (support both regular and 11-prefixed IDs)
+        if spellID == TEAM_ALLIANCE_BUFF or spellID == TEAM_ALLIANCE_BUFF_11 or
+           spellID == TEAM_HORDE_BUFF or spellID == TEAM_HORDE_BUFF_11 then
             if destName then
-                local team = (spellID == TEAM_ALLIANCE_BUFF) and "ALLIANCE_TEAM" or "HORDE_TEAM"
+                local team = (spellID == TEAM_ALLIANCE_BUFF or spellID == TEAM_ALLIANCE_BUFF_11) and "ALLIANCE_TEAM" or "HORDE_TEAM"
                 self:CachePlayerTeam(destName, team)
 
                 -- If this is the player, update our team reference
@@ -308,7 +353,7 @@ function FlagAlerts:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, subevent, ...)
                     self.myTeam = team
                     self.myTeamLastCheck = GetTime()
                     if sadb.debugmode then
-                        SoundAlerter:Print(string_format("[FlagAlerts] Detected my team: %s", team))
+                        SoundAlerter:Print(string_format("[FlagAlerts] Detected my team: %s (SpellID: %d)", team, spellID))
                     end
                 end
             end
@@ -319,8 +364,19 @@ function FlagAlerts:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, subevent, ...)
     -- PRIMARY DETECTION: Flag carrier aura removed (flag dropped)
     if subevent == "SPELL_AURA_REMOVED" then
         local spellID = select(9, ...)
+
+        -- ENHANCED DEBUG: Log all aura removals to help identify spell IDs
+        if sadb.debugmode then
+            SoundAlerter:Print(string_format("[FlagAlerts DEBUG] SPELL_AURA_REMOVED - SpellID: %d | Dest: %s | GUID: %s",
+                spellID or 0, destName or "nil", destGUID or "nil"))
+        end
+
         local carrierTeam = FLAG_CARRIER_AURAS[spellID]
         if carrierTeam and destName then
+            if sadb.debugmode then
+                SoundAlerter:Print(string_format("[FlagAlerts DEBUG] ✓ FLAG DROP DETECTED - SpellID: %d | Player: %s | Team: %s",
+                    spellID, destName, carrierTeam))
+            end
             self:HandleFlagDrop(destName, destGUID, carrierTeam)
             return  -- Early exit, flag event processed
         end
@@ -492,7 +548,7 @@ end
 --
 -- For players, class is encoded in byte 5-6 of GUID
 -- Class IDs: 1=Warrior, 2=Paladin, 3=Hunter, 4=Rogue, 5=Priest,
---            6=DK, 7=Shaman, 8=Mage, 9=Warlock, 11=Druid
+--            6=DK, 7=Shaman, 8=Mage, 9=Warlock, 10=Druid
 -- ========================================
 
 local CLASS_ID_TO_NAME = {
@@ -505,7 +561,7 @@ local CLASS_ID_TO_NAME = {
     [7] = "SHAMAN",
     [8] = "MAGE",
     [9] = "WARLOCK",
-    [11] = "DRUID",
+    [10] = "DRUID",  -- Fixed: Was [11], should be [10] in WotLK
 }
 
 function FlagAlerts:ExtractClassFromGUID(guid)
@@ -564,6 +620,11 @@ end
 function FlagAlerts:ProcessFlagEvent(message)
     local startTime = debugprofilestop()
 
+    -- ENHANCED DEBUG: Log all incoming chat messages
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts DEBUG] CHAT MESSAGE: %s", message))
+    end
+
     -- Pattern matching (optimized with early exit)
     local playerName, eventType, flagName, carrierTeam
     for _, patternData in ipairs(self.flagPatterns) do
@@ -594,7 +655,16 @@ function FlagAlerts:ProcessFlagEvent(message)
     end
 
     if not playerName or not eventType then
+        if sadb.debugmode then
+            SoundAlerter:Print("[FlagAlerts DEBUG] ✗ No pattern match - message ignored")
+        end
         return  -- Not a flag event we care about
+    end
+
+    -- ENHANCED DEBUG: Show successful pattern match
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts DEBUG] ✓ CHAT PATTERN MATCHED - Player: %s | Event: %s | Flag: %s | Team: %s",
+            playerName, eventType, flagName or "N/A", carrierTeam or "UNKNOWN"))
     end
 
     -- Check if this action type is enabled
@@ -958,15 +1028,16 @@ function FlagAlerts:GetMyTeam()
     end
 
     -- Scan player buffs to detect team assignment (using localized UnitBuff for speed)
+    -- Check both regular and 11-prefixed spell IDs for Ascension compatibility
     for i = 1, 40 do
         local _, _, _, _, _, _, _, _, _, _, spellID = UnitBuff("player", i)
         if not spellID then break end
 
-        if spellID == TEAM_ALLIANCE_BUFF then
+        if spellID == TEAM_ALLIANCE_BUFF or spellID == TEAM_ALLIANCE_BUFF_11 then
             self.myTeam = "ALLIANCE_TEAM"
             self.myTeamLastCheck = currentTime
             return "ALLIANCE_TEAM"
-        elseif spellID == TEAM_HORDE_BUFF then
+        elseif spellID == TEAM_HORDE_BUFF or spellID == TEAM_HORDE_BUFF_11 then
             self.myTeam = "HORDE_TEAM"
             self.myTeamLastCheck = currentTime
             return "HORDE_TEAM"
@@ -1072,6 +1143,11 @@ function FlagAlerts:ProcessAudioQueue()
         PlaySoundFile(sadb.sapath .. audioEvent.class .. ".mp3", "Master")
     else
         PlaySoundFile(sadb.sapath .. "Enemy.mp3", "Master")
+    end
+
+    -- Record statistics for flag alerts
+    if sadb.statistics and sadb.statistics.enabled and SoundAlerter.RecordAlert then
+        SoundAlerter:RecordAlert("flagAlerts")
     end
 
     -- Schedule objective audio (delayed for composite effect)
