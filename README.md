@@ -1,6 +1,6 @@
 # SoundAlerter for Project Ascension (Bronzebeard)
 
-![Version](https://img.shields.io/badge/version-1.4.56-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+![Version](https://img.shields.io/badge/version-1.4.57-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
 <p align="center">
 <img src="Media/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>

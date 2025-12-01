@@ -122,3 +122,6 @@ L["Resurrection, Redemption, Ancestral Spirit, Revive"] = true
 L["Enemy cooldown abilities"] = true
 L["Interrupts on enemy"] = true
 L["Spell Lock, Counterspell, Kick, Pummel, Mind Freeze, Skull Bash, Rebuke, Solar Beam"] = true
+L["Chat Channels to Alert In"] = true
+L["None (Disable Chat Alerts)"] = true
+L["Disables all chat alerts globally, overriding other selections."] = true
