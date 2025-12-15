@@ -14,6 +14,16 @@ local voiceAlertSearchQueries = {
 	enemydebuffdown = ""
 }
 
+-- Spell Tracker add spell form state
+local spellTrackerAddForm = {
+	spellID = "",
+	unit = "player",
+	auraType = "HELPFUL"
+}
+
+-- Spell Tracker selection state for UI
+local spellTrackerSelectedIndex = nil  -- Currently selected spell index (1-20) or nil
+
 local function initOptions()
 	if SoundAlerter.options.args.general then
 		return
@@ -1181,63 +1191,114 @@ function SoundAlerter:OnOptionsCreate()
 					},
 					testTexturesButton = {
 						type = 'execute',
-						name = "Test Enemy/Friendly Textures",
+						name = "Test Flag Alert Toasts",
 						desc = "Shows test toasts with your selected textures and colors:\n" ..
 						       "• Red enemy flag carrier toast (with your enemy texture)\n" ..
 						       "• Green friendly flag carrier toast (with your friendly texture)\n\n" ..
-						       "This lets you preview your texture choices before entering a battleground.",
+						       "Test toasts appear at the EXACT position where real alerts will show.\n" ..
+						       "Use the position sliders below to adjust placement.",
 						func = function()
-							if SoundAlerter.ProximityToasts then
-								local sadb = SoundAlerter.db1.profile
-								local oldEnabled = sadb.proximityToasts.enabled
-								sadb.proximityToasts.enabled = true
-
-								-- Test enemy texture
-								SoundAlerter.ProximityToasts:ShowToast(
-									"EnemyCarrier",
-									"ROGUE",
-									nil,
-									"TEST-ENEMY-" .. math.random(1000, 9999),
-									80,
-									nil,
-									"ENEMY FLAG CARRIER!",
-									"FLAG_ENEMY"
+							if SoundAlerter.FlagAlerts then
+								-- Use the actual FlagAlerts system for testing
+								-- This ensures test position matches real alert position
+								SoundAlerter.FlagAlerts:ShowFlagToast(
+									"TestEnemy",      -- playerName
+									"ROGUE",          -- playerClass
+									"PICKUP",         -- eventType
+									"HORDE_TEAM"      -- carrierTeam (enemy team = red)
 								)
 
 								-- Test friendly texture (1.2 second delay)
 								SoundAlerter:ScheduleTimer(function()
-									SoundAlerter.ProximityToasts:ShowToast(
-										"FriendlyCarrier",
-										"PALADIN",
-										nil,
-										"TEST-FRIENDLY-" .. math.random(1000, 9999),
-										80,
-										nil,
-										"FRIENDLY FLAG CARRIER!",
-										"FLAG_FRIENDLY"
+									SoundAlerter.FlagAlerts:ShowFlagToast(
+										"TestFriendly",   -- playerName
+										"PALADIN",        -- playerClass
+										"PICKUP",         -- eventType
+										"ALLIANCE_TEAM"   -- carrierTeam (friendly team = green)
 									)
 								end, 1.2)
 
-								-- Restore old setting
-								sadb.proximityToasts.enabled = oldEnabled
-
-								DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00SoundAlerter:|r Test flag textures displayed!")
+								DEFAULT_CHAT_FRAME:AddMessage("|cff00FF00SoundAlerter:|r Test flag toasts displayed at actual alert position!")
 							else
-								DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000SoundAlerter:|r ProximityToasts not initialized!")
+								DEFAULT_CHAT_FRAME:AddMessage("|cffFF0000SoundAlerter:|r FlagAlerts module not loaded. Try /reload|r")
 							end
 						end,
 						disabled = function()
 							return not sadb.battlegroundAlertsEnabled or
-							       not sadb.flagToastsEnabled or
-							       not sadb.flagTeamBackgroundColors
+							       not sadb.flagToastsEnabled
 						end,
 						width = "full",
 						order = 6.7,
 					},
+					spacer2 = {
+						type = 'description',
+						name = "\n|cffFFD700Toast Position:|r",
+						fontSize = "medium",
+						order = 6.8,
+					},
+					flagPositionX = {
+						type = 'range',
+						name = "Horizontal Position (X)",
+						desc = "Adjust horizontal position of flag alert toasts.\n" ..
+						       "0 = Center of screen\n" ..
+						       "Negative = Left of center\n" ..
+						       "Positive = Right of center",
+						min = -600,
+						max = 600,
+						step = 10,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled
+						end,
+						width = "normal",
+						order = 6.9,
+						set = function(info, value)
+							if not sadb.flagToasts then
+								sadb.flagToasts = {}
+							end
+							sadb.flagToasts.positionX = value
+							-- Update layout immediately if FlagAlerts is loaded
+							if SoundAlerter.FlagAlerts then
+								SoundAlerter.FlagAlerts:UpdateFlagToastLayout()
+							end
+						end,
+						get = function(info)
+							return sadb.flagToasts and sadb.flagToasts.positionX or 0
+						end,
+					},
+					flagPositionY = {
+						type = 'range',
+						name = "Vertical Position (Y)",
+						desc = "Adjust vertical position of flag alert toasts.\n" ..
+						       "0 = Top of screen\n" ..
+						       "Negative = Lower on screen (recommended: -200 to -400)\n" ..
+						       "Default: -300 (below proximity alerts)",
+						min = -800,
+						max = 200,
+						step = 10,
+						disabled = function()
+							return not sadb.battlegroundAlertsEnabled or
+							       not sadb.flagToastsEnabled
+						end,
+						width = "normal",
+						order = 6.95,
+						set = function(info, value)
+							if not sadb.flagToasts then
+								sadb.flagToasts = {}
+							end
+							sadb.flagToasts.positionY = value
+							-- Update layout immediately if FlagAlerts is loaded
+							if SoundAlerter.FlagAlerts then
+								SoundAlerter.FlagAlerts:UpdateFlagToastLayout()
+							end
+						end,
+						get = function(info)
+							return sadb.flagToasts and sadb.flagToasts.positionY or -300
+						end,
+					},
 					toastNote = {
 						type = 'description',
-						name = "\n|cffAAAAAAToast appearance settings (position, duration, style) are shared with Proximity Alerts. " ..
-						       "Adjust these in the Proximity Alerts tab.|r\n",
+						name = "\n|cffAAAAAANote: Flag alert toasts have their own position separate from Proximity Alerts.|r\n",
 						fontSize = "small",
 						order = 7,
 					},
@@ -1390,19 +1451,6 @@ function SoundAlerter:OnOptionsCreate()
 							end
 						end,
 						order = 2,
-					},
-					testButton = {
-						type = 'execute',
-						name = "Test Flag Pickup Alert",
-						desc = "Manually trigger a test flag pickup event",
-						func = function()
-							if SoundAlerter.FlagAlerts then
-								SoundAlerter.FlagAlerts:ProcessFlagEvent("Testplayer has taken the flag!")
-							else
-								SoundAlerter:Print("|cffFF0000Error: FlagAlerts module not loaded|r")
-							end
-						end,
-						order = 3,
 					},
 				},
 			},
@@ -1873,6 +1921,808 @@ function SoundAlerter:OnOptionsCreate()
 	})
 
 	-- ===========================
+	-- CASTING BARS TAB
+	-- ===========================
+	self:AddOption('CastingBars', {
+		type = 'group',
+		name = "Casting Bars",
+		desc = "Display casting and channeling progress for player, target, and focus with precise timing information.",
+		order = 2.85,
+		args = {
+			description = {
+				type = 'description',
+				name = "|cffFFD700Casting Bars|r provide real-time visual feedback for spell casting and channeling.\n\n" ..
+				       "|cffFFFFFFFeatures:|r\n" ..
+				       "• Configurable time format (milliseconds or centiseconds)\n" ..
+				       "• Optional spell icons next to casting bars\n" ..
+				       "• Latency shadow for predicting server-side cast completion\n" ..
+				       "• Subtle pulse animation at cast start\n" ..
+				       "• Blue bars for regular casts, purple for channeling\n" ..
+				       "• Multiple texture options (Default, Solid, Transparent, Banto, Halcyone)\n" ..
+				       "• Independent positioning and sizing\n\n" ..
+				       "|cffFF0000Note:|r Unlock bars to drag them into position. When locked, bars only appear during active casts. All bars are disabled by default.\n",
+				fontSize = "medium",
+				order = 1,
+			},
+
+			generalGroup = {
+				type = 'group',
+				inline = true,
+				name = "General Settings",
+				order = 2,
+				args = {
+					lockToggle = {
+						type = 'toggle',
+						name = "Lock Bars",
+						desc = "Lock all casting bars in place. Unlock to drag and reposition.",
+						get = function() return SoundAlerter.db1.profile.castingBars.locked end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.locked = value
+							-- Call SetLocked to update visibility
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:SetLocked(value)
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					barTexture = {
+						type = 'select',
+						name = "Bar Texture",
+						desc = "Choose the visual texture for all casting bars. Matches resource bar texture options for consistency.",
+						values = {
+							default = "Default (WoW StatusBar)",
+							solid = "Solid (Clean Fill)",
+							transparent = "Transparent (Semi-Opaque)",
+							banto = "Banto",
+							halcyone = "Halcyone",
+						},
+						get = function() return SoundAlerter.db1.profile.castingBars.barTexture end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.barTexture = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:UpdateTexture()
+							end
+						end,
+						width = "full",
+						order = 2,
+					},
+					timeFormat = {
+						type = 'select',
+						name = "Time Format",
+						desc = "Choose how cast time is displayed.\n\nSS.sss = Seconds with milliseconds (e.g., 02.450)\nSS.ss = Seconds with centiseconds (e.g., 02.45)",
+						values = {
+							milliseconds = "SS.sss (Milliseconds)",
+							centiseconds = "SS.ss (Centiseconds)",
+						},
+						get = function() return SoundAlerter.db1.profile.castingBars.timeFormat end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.timeFormat = value
+						end,
+						width = "full",
+						order = 3,
+					},
+					showSpellIcon = {
+						type = 'toggle',
+						name = "Show Spell Icons",
+						desc = "Display spell icons to the left of casting bars.",
+						get = function() return SoundAlerter.db1.profile.castingBars.showSpellIcon end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.showSpellIcon = value
+						end,
+						width = "full",
+						order = 4,
+					},
+					showLatency = {
+						type = 'toggle',
+						name = "Show Latency Shadow",
+						desc = "Display a red shadow at the end of the player casting bar representing network latency. Helps predict when the spell will actually cast on the server.",
+						get = function() return SoundAlerter.db1.profile.castingBars.showLatency end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.showLatency = value
+						end,
+						width = "full",
+						order = 5,
+					},
+				},
+			},
+
+			playerGroup = {
+				type = 'group',
+				inline = true,
+				name = "Player Casting Bar",
+				order = 3,
+				args = {
+					playerEnabled = {
+						type = 'toggle',
+						name = "Show Player Casting Bar",
+						desc = "Display casting bar for your own spells. Shows casting time in mm:ss.SSS format.",
+						get = function() return SoundAlerter.db1.profile.castingBars.player.enabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.player.enabled = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					playerWidth = {
+						type = 'range',
+						name = "Width",
+						desc = "Width of the player casting bar.",
+						min = 100,
+						max = 500,
+						step = 10,
+						get = function() return SoundAlerter.db1.profile.castingBars.player.width end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.player.width = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.player.enabled end,
+						width = "full",
+						order = 2,
+					},
+					playerHeight = {
+						type = 'range',
+						name = "Height",
+						desc = "Height of the player casting bar.",
+						min = 12,
+						max = 50,
+						step = 2,
+						get = function() return SoundAlerter.db1.profile.castingBars.player.height end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.player.height = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.player.enabled end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+
+			targetGroup = {
+				type = 'group',
+				inline = true,
+				name = "Target Casting Bar",
+				order = 4,
+				args = {
+					targetEnabled = {
+						type = 'toggle',
+						name = "Show Target Casting Bar",
+						desc = "Display casting bar for your target's spells. Essential for PvP interrupt timing.",
+						get = function() return SoundAlerter.db1.profile.castingBars.target.enabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.target.enabled = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					targetWidth = {
+						type = 'range',
+						name = "Width",
+						desc = "Width of the target casting bar.",
+						min = 100,
+						max = 500,
+						step = 10,
+						get = function() return SoundAlerter.db1.profile.castingBars.target.width end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.target.width = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.target.enabled end,
+						width = "full",
+						order = 2,
+					},
+					targetHeight = {
+						type = 'range',
+						name = "Height",
+						desc = "Height of the target casting bar.",
+						min = 12,
+						max = 50,
+						step = 2,
+						get = function() return SoundAlerter.db1.profile.castingBars.target.height end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.target.height = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.target.enabled end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+
+			focusGroup = {
+				type = 'group',
+				inline = true,
+				name = "Focus Casting Bar",
+				order = 5,
+				args = {
+					focusEnabled = {
+						type = 'toggle',
+						name = "Show Focus Casting Bar",
+						desc = "Display casting bar for your focus target's spells. Perfect for arena focus target tracking.",
+						get = function() return SoundAlerter.db1.profile.castingBars.focus.enabled end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.focus.enabled = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					focusWidth = {
+						type = 'range',
+						name = "Width",
+						desc = "Width of the focus casting bar.",
+						min = 100,
+						max = 500,
+						step = 10,
+						get = function() return SoundAlerter.db1.profile.castingBars.focus.width end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.focus.width = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.focus.enabled end,
+						width = "full",
+						order = 2,
+					},
+					focusHeight = {
+						type = 'range',
+						name = "Height",
+						desc = "Height of the focus casting bar.",
+						min = 12,
+						max = 50,
+						step = 2,
+						get = function() return SoundAlerter.db1.profile.castingBars.focus.height end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.castingBars.focus.height = value
+							if SoundAlerter.CastingBars then
+								SoundAlerter.CastingBars:LoadSettings()
+							end
+						end,
+						disabled = function() return not SoundAlerter.db1.profile.castingBars.focus.enabled end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+		},
+	})
+
+	-- ===========================
+	-- SPELL TRACKER TAB
+	-- ===========================
+
+	-- Forward declaration for RebuildSpellTrackerOptions (defined below, called by BuildAddSpellPanel and BuildConfigPanel)
+	local RebuildSpellTrackerOptions
+
+	-- Build add spell panel (shown when no spell selected)
+	local function BuildAddSpellPanel()
+		return {
+			addDescription = {
+				type = 'description',
+				name = "Add a new spell to track. Enter the spell ID and configure settings below.",
+				fontSize = "medium",
+				order = 1,
+			},
+			addSpellID = {
+				type = 'input',
+				name = "Spell ID",
+				desc = "Enter numeric spell ID",
+				get = function() return spellTrackerAddForm.spellID end,
+				set = function(info, value) spellTrackerAddForm.spellID = value end,
+				width = "full",
+				order = 2,
+			},
+			addUnit = {
+				type = 'select',
+				name = "Track On",
+				desc = "Which unit to track this aura on",
+				values = { player = "Player (Self)", target = "Target" },
+				get = function() return spellTrackerAddForm.unit end,
+				set = function(info, value) spellTrackerAddForm.unit = value end,
+				width = "full",
+				order = 3,
+			},
+			addAuraType = {
+				type = 'select',
+				name = "Aura Type",
+				desc = "Type of aura to track",
+				values = { HELPFUL = "Buff (Helpful)", HARMFUL = "Debuff (Harmful)" },
+				get = function() return spellTrackerAddForm.auraType end,
+				set = function(info, value) spellTrackerAddForm.auraType = value end,
+				width = "full",
+				order = 4,
+			},
+			addButton = {
+				type = 'execute',
+				name = "Add Spell",
+				desc = "Add this spell to the tracker",
+				func = function()
+					local spellID = tonumber(spellTrackerAddForm.spellID)
+					if not spellID or spellID <= 0 then
+						SoundAlerter:Print("|cffff0000Invalid spell ID.|r")
+						return
+					end
+
+					if SoundAlerter.SpellTracker then
+						local success = SoundAlerter.SpellTracker:AddTrackedSpell(
+							spellID, spellTrackerAddForm.unit, spellTrackerAddForm.auraType)
+						if success then
+							SoundAlerter:Print("|cff00ff00Added spell " .. spellID .. " to tracker.|r")
+							spellTrackerAddForm.spellID = ""
+							RebuildSpellTrackerOptions()
+							LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+						end
+					end
+				end,
+				width = "full",
+				order = 5,
+			},
+		}
+	end
+
+	-- Build config panel for selected spell
+	local function BuildConfigPanel()
+		if not spellTrackerSelectedIndex then
+			-- No selection - show add spell form
+			return {
+				type = 'group',
+				inline = true,
+				name = "Add New Spell",
+				order = 6,
+				args = BuildAddSpellPanel(),
+			}
+		end
+
+		-- Spell selected - show config options
+		local i = spellTrackerSelectedIndex
+		local config = SoundAlerter.db1.profile.spellTracker.icons[i]
+		if not config then
+			return {
+				type = 'group',
+				inline = true,
+				name = "Error",
+				order = 6,
+				args = {
+					errorMsg = {
+						type = 'description',
+						name = "|cffff0000Selected spell not found.|r",
+						order = 1,
+					}
+				}
+			}
+		end
+
+		local spellName = GetSpellInfo(config.spellID) or "Unknown"
+		local _, _, icon = GetSpellInfo(config.spellID)
+
+		return {
+			type = 'group',
+			inline = true,
+			name = "Configure: " .. spellName,
+			order = 6,
+			args = {
+				spellHeader = {
+					type = 'description',
+					name = string.format("|T%s:24|t |cffFFD700%s|r\nSpell ID: %d",
+						icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+						spellName,
+						config.spellID),
+					fontSize = "large",
+					order = 1,
+				},
+				enabled = {
+					type = 'toggle',
+					name = "Enabled",
+					desc = "Enable tracking for this spell",
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.enabled
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.enabled = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 2,
+				},
+				unit = {
+					type = 'select',
+					name = "Track On",
+					desc = "Which unit to track this aura on",
+					values = { player = "Player (Self)", target = "Target" },
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.unit or "player"
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.unit = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 3,
+				},
+				auraType = {
+					type = 'select',
+					name = "Aura Type",
+					desc = "Type of aura to track",
+					values = { HELPFUL = "Buff (Helpful)", HARMFUL = "Debuff (Harmful)" },
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.auraType or "HELPFUL"
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.auraType = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 4,
+				},
+				size = {
+					type = 'range',
+					name = "Icon Size",
+					desc = "Size of the spell tracker icon in pixels",
+					min = 24,
+					max = 80,
+					step = 4,
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.size or 48
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.size = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 5,
+				},
+				showWhenInactive = {
+					type = 'toggle',
+					name = "Show When Inactive",
+					desc = "Display icon (faded) even when aura is not active",
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.showWhenInactive
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.showWhenInactive = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 5.5,
+				},
+				trackCooldown = {
+					type = 'toggle',
+					name = "Track Cooldown",
+					desc = "Display spell cooldown timer (integer seconds) at icon center.\n\n" ..
+						   "|cffFF0000Limitation:|r Only tracks YOUR cooldowns (spells on your action bars). " ..
+						   "Does NOT track enemy cooldowns.\n\n" ..
+						   "Shows when the spell is ready to cast again (independent from aura duration).",
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.trackCooldown or false
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.trackCooldown = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 6,
+				},
+				cooldownTextSize = {
+					type = 'range',
+					name = "Cooldown Text Size",
+					desc = "Font size for the cooldown countdown text (in points). Only visible when 'Track Cooldown' is enabled.",
+					min = 8,
+					max = 32,
+					step = 1,
+					get = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						return iconConfig and iconConfig.cooldownTextSize or 14
+					end,
+					set = function(info, value)
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if iconConfig then
+							iconConfig.cooldownTextSize = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:LoadSettings()
+							end
+						end
+					end,
+					width = "full",
+					order = 6.5,
+				},
+				deleteButton = {
+					type = 'execute',
+					name = "Delete Spell",
+					desc = "Remove this spell from the tracker",
+					func = function()
+						local iconConfig = SoundAlerter.db1.profile.spellTracker.icons[i]
+						if SoundAlerter.SpellTracker and iconConfig then
+							local spellName = GetSpellInfo(iconConfig.spellID) or "Unknown"
+							SoundAlerter.SpellTracker:RemoveTrackedSpell(i)
+							SoundAlerter:Print("|cffff0000Removed " .. spellName .. " from tracker.|r")
+							spellTrackerSelectedIndex = nil  -- Clear selection
+							RebuildSpellTrackerOptions()
+							LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+						end
+					end,
+					confirm = true,
+					confirmText = "Are you sure you want to delete this tracked spell?",
+					width = "full",
+					order = 10,
+				},
+			}
+		}
+	end
+
+	RebuildSpellTrackerOptions = function()
+		local spellTrackerTab = SoundAlerter.options.args['SpellTracker']
+		if not spellTrackerTab then return end
+
+		-- Clear old dynamic entries (including spell list and config panel)
+		for key in pairs(spellTrackerTab.args) do
+			if key:match("^spell_%d+$") or key == "spellListGroup" or key == "configPanelGroup" then
+				spellTrackerTab.args[key] = nil
+			end
+		end
+
+		-- Create spell list (left side)
+		spellTrackerTab.args.spellListGroup = {
+			type = 'group',
+			inline = true,
+			name = "Tracked Spells",
+			order = 5,
+			args = {},
+		}
+
+		-- Add "Add New Spell" button at the top
+		spellTrackerTab.args.spellListGroup.args.addNewButton = {
+			type = 'execute',
+			name = "Add New Spell",
+			desc = "Click to show the add spell form",
+			func = function()
+				spellTrackerSelectedIndex = nil  -- Deselect current spell
+				RebuildSpellTrackerOptions()
+				LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+			end,
+			width = "full",
+			order = 1,
+		}
+
+		-- Add compact spell entries
+		if SoundAlerter.db1.profile.spellTracker.icons then
+			for i, config in ipairs(SoundAlerter.db1.profile.spellTracker.icons) do
+				local spellName = GetSpellInfo(config.spellID) or "Unknown"
+				local statusText = config.enabled and "[ON]" or "[OFF]"
+				local unitText = config.unit == "player" and "P" or "T"
+				local typeText = config.auraType == "HELPFUL" and "Buff" or "Debuff"
+
+				spellTrackerTab.args.spellListGroup.args["spell_" .. i] = {
+					type = 'execute',
+					name = string.format("%s %s (%d) - %s/%s",
+						statusText, spellName, config.spellID, unitText, typeText),
+					desc = "Click to configure this spell",
+					func = function()
+						spellTrackerSelectedIndex = i
+						RebuildSpellTrackerOptions()
+						LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+					end,
+					width = "full",
+					order = 100 + i,
+				}
+			end
+		end
+
+		-- Create config panel (right side) - dynamically shows add form or config panel
+		spellTrackerTab.args.configPanelGroup = BuildConfigPanel()
+	end
+
+	self:AddOption('SpellTracker', {
+		type = 'group',
+		name = "Spell Tracker",
+		desc = "Track important buffs and debuffs with cooldown overlays and countdown timers.",
+		order = 2.87,
+		args = {
+			description = {
+				type = 'description',
+				name = "|cffFFD700Spell Tracker|r allows you to monitor specific auras with visual icons and cooldown indicators.\n\n" ..
+				       "|cffFFFFFFFeatures:|r\n" ..
+				       "• Track up to 20 different spell buffs/debuffs\n" ..
+				       "• Configure per-spell: player or target, buff or debuff\n" ..
+				       "• Optional countdown timer in SS.ss format (30 updates/sec)\n" ..
+				       "• Clockwise cooldown spiral overlay\n" ..
+				       "• Icons fade when inactive, visible when active\n" ..
+				       "• Drag icons to reposition (when unlocked)\n" ..
+				       "• Resize icons individually\n\n" ..
+				       "|cffFF0000Usage:|r Use the 'Add Tracked Spell' section below to track a new spell. Enter the spell ID and configure its settings.\n",
+				fontSize = "medium",
+				order = 1,
+			},
+
+			generalGroup = {
+				type = 'group',
+				inline = true,
+				name = "General Settings",
+				order = 2,
+				args = {
+					lockToggle = {
+						type = 'toggle',
+						name = "Lock Icons",
+						desc = "Lock all spell tracker icons in place. Unlock to drag and reposition individual icons.",
+						get = function() return SoundAlerter.db1.profile.spellTracker.locked end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.spellTracker.locked = value
+							if SoundAlerter.SpellTracker then
+								SoundAlerter.SpellTracker:SetLocked(value)
+							end
+						end,
+						width = "full",
+						order = 1,
+					},
+					showTimerText = {
+						type = 'toggle',
+						name = "Show Aura Duration Numbers",
+						desc = "Display aura duration countdown (SS.ss format) at bottom of spell tracker icons. This shows how long the buff/debuff lasts.",
+						get = function() return SoundAlerter.db1.profile.spellTracker.showTimerText end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.spellTracker.showTimerText = value
+						end,
+						width = "full",
+						order = 2,
+					},
+					showCooldownText = {
+						type = 'toggle',
+						name = "Show Spell Cooldown Numbers",
+						desc = "Display spell cooldown countdown (integer seconds) at center of spell tracker icons. " ..
+						       "Only affects spells with 'Track Cooldown' enabled.\n\n" ..
+						       "|cffFF7D0ANote:|r This tracks YOUR spell cooldowns (when the ability is ready to use again), " ..
+						       "not enemy cooldowns or aura durations.",
+						get = function() return SoundAlerter.db1.profile.spellTracker.showCooldownText end,
+						set = function(info, value)
+							SoundAlerter.db1.profile.spellTracker.showCooldownText = value
+						end,
+						width = "full",
+						order = 3,
+					},
+				},
+			},
+
+			addSpellGroup = {
+				type = 'group',
+				inline = true,
+				name = "Add Tracked Spell",
+				order = 3,
+				args = {
+					addDescription = {
+						type = 'description',
+						name = "Add a new spell to track. You can track player buffs, player debuffs, target buffs, or target debuffs.\n\n" ..
+						       "Find spell IDs by enabling 'Show IDs in tooltips' in WoW settings, or use the Spell Finder tab.",
+						fontSize = "small",
+						order = 1,
+					},
+					addSpellID = {
+						type = 'input',
+						name = "Spell ID",
+						desc = "Enter the spell ID to track (numeric value).",
+						get = function() return spellTrackerAddForm.spellID end,
+						set = function(info, value) spellTrackerAddForm.spellID = value end,
+						width = "normal",
+						order = 2,
+					},
+					addUnit = {
+						type = 'select',
+						name = "Track On",
+						desc = "Choose whether to track this spell on yourself (player) or on your current target.",
+						values = {
+							player = "Player (Self)",
+							target = "Target",
+						},
+						get = function() return spellTrackerAddForm.unit end,
+						set = function(info, value) spellTrackerAddForm.unit = value end,
+						width = "normal",
+						order = 3,
+					},
+					addAuraType = {
+						type = 'select',
+						name = "Aura Type",
+						desc = "Choose whether to track buffs (helpful effects) or debuffs (harmful effects).",
+						values = {
+							HELPFUL = "Buff (Helpful)",
+							HARMFUL = "Debuff (Harmful)",
+						},
+						get = function() return spellTrackerAddForm.auraType end,
+						set = function(info, value) spellTrackerAddForm.auraType = value end,
+						width = "normal",
+						order = 4,
+					},
+					addButton = {
+						type = 'execute',
+						name = "Add Spell",
+						desc = "Add this spell to the tracker list.",
+						func = function()
+							local spellID = tonumber(spellTrackerAddForm.spellID)
+
+							if not spellID or spellID <= 0 then
+								SoundAlerter:Print("|cffff0000Invalid spell ID. Please enter a numeric spell ID.|r")
+								return
+							end
+
+							if SoundAlerter.SpellTracker then
+								local success = SoundAlerter.SpellTracker:AddTrackedSpell(spellID, spellTrackerAddForm.unit, spellTrackerAddForm.auraType)
+								if success then
+									SoundAlerter:Print("|cff00ff00Added spell " .. spellID .. " to tracker.|r")
+									spellTrackerAddForm.spellID = ""
+									RebuildSpellTrackerOptions()
+									LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+								end
+							end
+						end,
+						width = "normal",
+						order = 5,
+					},
+				},
+			},
+
+			trackedSpellsHeader = {
+				type = 'header',
+				name = "Tracked Spells",
+				order = 4,
+			},
+		},
+	})
+
+	RebuildSpellTrackerOptions()
+
+	-- ===========================
 	-- STATISTICS TAB
 	-- ===========================
 	self:AddOption('Statistics', {
@@ -1902,7 +2752,10 @@ function SoundAlerter:OnOptionsCreate()
 					sadb.statistics.enabled = value
 					if value then
 						-- Initialize on enable
-						SoundAlerter:InitializeStatistics()
+						local Statistics = SoundAlerter:GetModule("Statistics")
+						if Statistics then
+							Statistics:InitializeStatistics()
+						end
 						SoundAlerter:Print("Statistics tracking enabled")
 					else
 						SoundAlerter:Print("Statistics tracking disabled (existing data preserved)")
@@ -2022,71 +2875,150 @@ function SoundAlerter:OnOptionsCreate()
 			},
 
 			-- Top Spells Group
-			topSpells = {
+			topSpellsTable = {
 				type = 'group',
 				inline = true,
-				name = "Top Alerted Spells",
-				desc = "Most frequently alerted spells (up to 50 tracked)",
+				name = "Top 20 Alerted Spells",
+				desc = "Most frequently alerted spells with detailed analytics",
 				order = 3,
 				hidden = function() return not sadb.statistics or not sadb.statistics.enabled end,
 				args = {
-					topSpellsDisplay = {
+					sortDropdown = {
+						type = 'select',
+						name = "Sort By",
+						desc = "Choose how to sort the spell list",
+						values = {
+							count_desc = "Most Alerts (High to Low)",
+							count_asc = "Fewest Alerts (Low to High)",
+							name_asc = "Spell Name (A-Z)",
+							name_desc = "Spell Name (Z-A)",
+							trend = "Trend (Increasing First)",
+							class = "Top Class",
+							zone = "Top Zone",
+							time = "Most Recent"
+						},
+						width = "full",
+						order = 1,
+						set = function(info, value)
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							Statistics:SetSortState("topSpells", value)
+						end,
+						get = function()
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							local sortState = Statistics:GetSortState()
+							return sortState.topSpells.sortType or "count_desc"
+						end
+					},
+
+					tableDisplay = {
 						type = 'description',
 						name = function()
-							if not sadb.statistics or not sadb.statistics.allTime or not sadb.statistics.allTime.topSpells then
-								return "|cffFF0000No spell data available|r"
-							end
-
-							local topSpells = sadb.statistics.allTime.topSpells
-							local spellList = {}
-
-							-- Convert to sorted list
-							for spellID, data in pairs(topSpells) do
-								table.insert(spellList, {
-									id = spellID,
-									count = data.count,
-									name = data.name,
-									lastSeen = data.lastSeen
-								})
-							end
-
-							-- Sort by count (descending)
-							table.sort(spellList, function(a, b) return a.count > b.count end)
-
-							-- Build display string (top 10)
-							if #spellList == 0 then
-								return "|cffFFFFFFNo spells tracked yet. Alerts will appear here as they trigger.|r"
-							end
-
-							local output = "|cffFFFFFFTop 10 Most Alerted Spells:|r\n\n"
-							local maxDisplay = math.min(10, #spellList)
-
-							for i = 1, maxDisplay do
-								local spell = spellList[i]
-								local spellName = GetSpellInfo(spell.id)
-								spellName = spellName or spell.name or "Unknown"
-
-								local timeAgo = SoundAlerter:FormatTimeAgo(spell.lastSeen)
-
-								output = output .. string.format(
-									"|cffFFD700%d.|r |cff00FF00%s|r: |cffFFFFFF%d alerts|r (Last: |cffAAAAAA%s|r)\n",
-									i,
-									spellName,
-									spell.count,
-									timeAgo
-								)
-							end
-
-							if #spellList > 10 then
-								output = output .. string.format("\n|cffAAAAAA...and %d more spells|r", #spellList - 10)
-							end
-
-							return output
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							return Statistics:GetTopSpellsTable()
 						end,
 						fontSize = "medium",
-						order = 1,
+						order = 2
 					},
-				},
+
+					refreshButton = {
+						type = 'execute',
+						name = "Refresh",
+						desc = "Refresh the statistics display",
+						width = "normal",
+						func = function()
+							LibStub("AceConfigRegistry-3.0"):NotifyChange("SoundAlerter")
+						end,
+						order = 3
+					}
+				}
+			},
+
+			enemiesTable = {
+				type = 'group',
+				inline = true,
+				name = "Top 20 Encountered Enemies",
+				desc = "Players who trigger the most alerts",
+				order = 4,
+				hidden = function() return not sadb.statistics or not sadb.statistics.enabled end,
+				args = {
+					sortDropdown = {
+						type = 'select',
+						name = "Sort By",
+						values = {
+							alerts_desc = "Most Alerts (High to Low)",
+							alerts_asc = "Fewest Alerts (Low to High)",
+							name_asc = "Name (A-Z)",
+							name_desc = "Name (Z-A)",
+							danger = "Danger Rating (High to Low)",
+							class = "Class",
+							time = "Most Recent"
+						},
+						width = "full",
+						order = 1,
+						set = function(info, value)
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							Statistics:SetSortState("enemies", value)
+						end,
+						get = function()
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							local sortState = Statistics:GetSortState()
+							return sortState.enemies.sortType or "alerts_desc"
+						end
+					},
+
+					tableDisplay = {
+						type = 'description',
+						name = function()
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							return Statistics:GetEnemiesTable()
+						end,
+						fontSize = "medium",
+						order = 2
+					}
+				}
+			},
+
+			classDistributionTable = {
+				type = 'group',
+				inline = true,
+				name = "Class Distribution Analysis",
+				desc = "Alert breakdown by enemy class",
+				order = 5,
+				hidden = function() return not sadb.statistics or not sadb.statistics.enabled end,
+				args = {
+					sortDropdown = {
+						type = 'select',
+						name = "Sort By",
+						values = {
+							alerts_desc = "Most Alerts (High to Low)",
+							alerts_asc = "Fewest Alerts (Low to High)",
+							class_asc = "Class Name (A-Z)",
+							players = "Most Players",
+							avg = "Highest Avg/Player"
+						},
+						width = "full",
+						order = 1,
+						set = function(info, value)
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							Statistics:SetSortState("classes", value)
+						end,
+						get = function()
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							local sortState = Statistics:GetSortState()
+							return sortState.classes.sortType or "alerts_desc"
+						end
+					},
+
+					tableDisplay = {
+						type = 'description',
+						name = function()
+							local Statistics = SoundAlerter:GetModule("Statistics")
+							return Statistics:GetClassDistributionTable()
+						end,
+						fontSize = "medium",
+						order = 2
+					}
+				}
 			},
 
 			-- Management Group
@@ -2195,7 +3127,7 @@ function SoundAlerter:OnOptionsCreate()
 
 					info = {
 						type = 'description',
-						name = "|cffAAAAAA💡 Statistics are saved per profile. Each character/spec can have separate tracking.|r",
+						name = "|cffAAAAAA Statistics are saved per profile. Each character/spec can have separate tracking.|r",
 						fontSize = "small",
 						order = 4,
 					},

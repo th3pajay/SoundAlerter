@@ -254,6 +254,54 @@ dbDefaults = {
 		},
 
 		-- ===========================
+		-- Casting Bars Settings
+		-- ===========================
+		castingBars = {
+			locked = false,
+			barTexture = "default",
+			timeFormat = "milliseconds",  -- "milliseconds" (SS.sss) or "centiseconds" (SS.ss)
+			showSpellIcon = false,  -- Show spell icon to left of bar
+			showLatency = false,  -- Show latency shadow on right side of bar
+
+			-- Player casting bar
+			player = {
+				enabled = false,  -- Disabled by default
+				PositionX = 0,
+				PositionY = -200,
+				width = 280,
+				height = 24,
+			},
+
+			-- Target casting bar
+			target = {
+				enabled = false,  -- Disabled by default
+				PositionX = 0,
+				PositionY = -230,
+				width = 280,
+				height = 24,
+			},
+
+			-- Focus casting bar
+			focus = {
+				enabled = false,  -- Disabled by default
+				PositionX = 0,
+				PositionY = -260,
+				width = 280,
+				height = 24,
+			},
+		},
+
+		-- ===========================
+		-- Spell Tracker Settings
+		-- ===========================
+		spellTracker = {
+			locked = false,
+			showTimerText = true,  -- Show aura duration countdown numbers on icons
+			showCooldownText = true,  -- Show spell cooldown countdown numbers on icons
+			icons = {},
+		},
+
+		-- ===========================
 		-- Battleground Alert Settings
 		-- ===========================
 		battlegroundAlertsEnabled = false,  -- Disabled by default (opt-in)
@@ -264,8 +312,20 @@ dbDefaults = {
 		flagCaptureAudio = true,
 		flagReturnAudio = false,  -- Less critical
 
-		-- Toast settings for flag alerts
+		-- Toast settings for flag alerts (dual-pool system)
 		flagToastsEnabled = true,
+		flagToastsUseClassIcons = true,     -- Show class icons vs flag icons
+		flagToastDisplayDuration = 5.0,     -- Display time in seconds (longer than proximity's 3s)
+
+		-- Flag toast positioning (separate from proximity toasts)
+		flagToasts = {
+			positionX = 0,                  -- X offset from screen center
+			positionY = -300,               -- Y offset (below proximity toasts at -200)
+			maxConcurrent = 3,              -- Max simultaneous flag toasts
+		},
+
+		-- Flag toast visual enhancements
+		flagRainbowBorder = true,        -- Rainbow border animation (matches proximity alerts)
 
 		-- Team-based background colors for flag toasts
 		flagTeamBackgroundColors = true,  -- Master toggle for colored backgrounds
@@ -317,12 +377,16 @@ dbDefaults = {
 			session = {
 				totalAlerts = 0,
 				startTime = 0,  -- GetTime() when session started
+				sessionNumber = 0,  -- Increments each session
 				byCategory = {
 					spellAlerts = 0,
 					proximityAlerts = 0,
 					trinketAlerts = 0,
 					flagAlerts = 0,
 				},
+				byClass = {},  -- Class distribution for this session
+				enemiesEncountered = {},  -- Enemy players encountered this session
+				spellsThisSession = {},  -- Spells alerted this session
 			},
 
 			-- Persistent statistics (all-time)
@@ -331,7 +395,8 @@ dbDefaults = {
 				totalSessions = 0,
 
 				-- Top spells tracking (limited to maxTopSpells)
-				topSpells = {},  -- [spellID] = { count, lastSeen, name }
+				-- Enhanced structure: { count, name, lastSeen, firstSeen, trend, byClass, byZone, spellSchool, spellCategory, sessionHistory }
+				topSpells = {},
 
 				-- Category breakdown
 				byCategory = {
@@ -346,6 +411,17 @@ dbDefaults = {
 					arena = 0,
 					battleground = 0,
 					worldPvP = 0,
+				},
+
+				-- Player intelligence tracking
+				playerTracking = {
+					-- Enemy player database
+					-- { totalAlerts, class, lastSeen, firstSeen, spellsUsed, byZone, dangerRating, encounterCount }
+					enemies = {},
+
+					-- Class-based summaries
+					-- [class] = { totalAlerts, uniquePlayers, topSpells, avgAlertsPerPlayer }
+					classSummary = {},
 				},
 			},
 
