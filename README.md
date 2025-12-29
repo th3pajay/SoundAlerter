@@ -4,7 +4,9 @@
 
 **From Simple Alerts to Complete Combat Suite**
 Voice callouts evolved into a comprehensive PvP combat suite for WoW Ascension.
-
+<p align="center">
+<img src="Media/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
+</p>
 ---
 
 ## A Different SoundAlerter 
@@ -36,7 +38,9 @@ SoundAlerter is a combat system built for competitive PvP. Eight integrated modu
 
 ### Proximity Alerts - Range Detection
 Visual and audio alerts for nearby enemies. Sticky toasts include instant targeting and countdown timers.
-
+<p align="center">
+<img src="Media/toast_sticky.gif?raw=true" alt="Sticky Toast" width="256"/>
+</p>
 **Features:**
 * Automatic enemy detection with configurable range
 * Persistent toasts until enemy leaves range
@@ -51,7 +55,9 @@ Visual and audio alerts for nearby enemies. Sticky toasts include instant target
 
 ### Battleground Alerts - Objective Tracking
 Team-aware CTF tracking for WSG and Eye of the Storm. 
-
+<p align="center">
+<img src="Media/toast_bg_flagpickup.gif?raw=true" alt="BG Flag Alerts" width="256"/>
+</p>
 **Features:**
 * Automatic team detection for mixed-faction BGs
 * Class identification via combat log
@@ -66,7 +72,9 @@ Team-aware CTF tracking for WSG and Eye of the Storm.
 
 ### Resource Bars - Power Tracking
 Unified bars for Health, Mana, Energy, Rage, and Combo Points.
-
+<p align="center">
+<img src="Media/resource_mgt.gif?raw=true" alt="Resource Mgt" width="256"/>
+</p>
 **Features:**
 * Feral Druid form-switching support
 * Smooth animations
@@ -92,7 +100,9 @@ Cast bars for Player, Target, and Focus units.
 
 ### Spell Tracker - Aura Management
 Icon-based tracking for buffs, debuffs, and cooldowns.
-
+<p align="center">
+<img src="Media/spell_tracker.gif?raw=true" alt="Spell Tracker" width="256"/>
+</p>
 **Features:**
 * Simultaneous player and target tracking
 * Cooldown spiral animations
@@ -105,7 +115,9 @@ Icon-based tracking for buffs, debuffs, and cooldowns.
 
 ### Spell Finder - Database Access
 Search 12,000+ spells instantly for IDs and tooltip data.
-
+<p align="center">
+<img src="Media/find_spell_db_progress.gif?raw=true" alt="Find Spell" width="256"/>
+</p>
 **Features:**
 * <1ms search response
 * Retail and 11-prefixed ID support
@@ -132,7 +144,11 @@ Encounter statistics and danger ratings.
 ### Installation
 1. Download the latest release.
 2. Extract the `SoundAlerter` folder to `World of Warcraft/Interface/AddOns/`.
-3. Launch WoW and check the minimap button.
+3. Launch WoW and check the minimap button (alternatively use shift and ctrl clicks to shortcut proximity and battleground alerts).
+ 
+<p align="center">
+<img src="Media/minimap_anim.gif?raw=true" alt="Minimap Anim" width="32"/>
+</p>
 
 ### Quick Setup
 1. Type `/sa`.
@@ -190,4 +206,5 @@ Encounter statistics and danger ratings.
 ## License
 MIT License - Open for use, modification, and distribution.
 
-**th3pajay / Starmistx**
+Fair winds, fellow adventurers!
+*th3pajay / Starmistx - An old feral (https://warcraftmovies.com/pv.php?t=3&l=pajay)*
