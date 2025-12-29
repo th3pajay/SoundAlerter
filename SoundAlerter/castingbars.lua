@@ -322,6 +322,8 @@ function CastingBars:RegisterEvents()
 	self.eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
 	self.eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
 	self.eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
+	self.eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+	self.eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
 
 	self.eventFrame:SetScript("OnEvent", function(frame, event, ...)
 		self:OnEvent(event, ...)
@@ -338,7 +340,16 @@ end
 -- ================================================================================
 
 function CastingBars:OnEvent(event, unit, ...)
-	-- Only handle player, target, focus
+	-- Handle target/focus change events first (these don't have a unit parameter)
+	if event == "PLAYER_TARGET_CHANGED" then
+		self:OnTargetChanged()
+		return
+	elseif event == "PLAYER_FOCUS_CHANGED" then
+		self:OnFocusChanged()
+		return
+	end
+
+	-- Only handle player, target, focus for UNIT_SPELLCAST events
 	if unit ~= "player" and unit ~= "target" and unit ~= "focus" then
 		return
 	end
@@ -698,6 +709,86 @@ function CastingBars:OnChannelUpdate(unit)
 		state.startTime = (startTime or 0) / 1000
 		state.endTime = (endTime or 0) / 1000
 	end
+end
+
+-- ================================================================================
+-- TARGET CHANGE HANDLER
+-- Polls UnitCastingInfo/UnitChannelInfo when player targets new unit mid-cast
+-- ================================================================================
+
+function CastingBars:OnTargetChanged()
+	-- Early return if target bar disabled
+	if not self.db.target.enabled then return end
+
+	-- Check if new target exists
+	if not UnitExists("target") then
+		-- No target: hide bar and clear state
+		if self.targetFrame then
+			self:OnCastStop("target")
+		end
+		return
+	end
+
+	-- Poll for active cast
+	local spellName, nameSubtext, text, texture, startTime, endTime = UnitCastingInfo("target")
+
+	if spellName then
+		-- Target is casting: trigger cast start manually
+		self:OnCastStart("target")
+		return
+	end
+
+	-- Poll for active channel
+	local chanSpellName, chanNameSubtext, chanText, chanTexture, chanStartTime, chanEndTime = UnitChannelInfo("target")
+
+	if chanSpellName then
+		-- Target is channeling: trigger channel start manually
+		self:OnChannelStart("target")
+		return
+	end
+
+	-- Target not casting/channeling: hide bar
+	self:OnCastStop("target")
+end
+
+-- ================================================================================
+-- FOCUS CHANGE HANDLER
+-- Polls UnitCastingInfo/UnitChannelInfo when player sets new focus mid-cast
+-- ================================================================================
+
+function CastingBars:OnFocusChanged()
+	-- Early return if focus bar disabled
+	if not self.db.focus.enabled then return end
+
+	-- Check if new focus exists
+	if not UnitExists("focus") then
+		-- No focus: hide bar and clear state
+		if self.focusFrame then
+			self:OnCastStop("focus")
+		end
+		return
+	end
+
+	-- Poll for active cast
+	local spellName, nameSubtext, text, texture, startTime, endTime = UnitCastingInfo("focus")
+
+	if spellName then
+		-- Focus is casting: trigger cast start manually
+		self:OnCastStart("focus")
+		return
+	end
+
+	-- Poll for active channel
+	local chanSpellName, chanNameSubtext, chanText, chanTexture, chanStartTime, chanEndTime = UnitChannelInfo("focus")
+
+	if chanSpellName then
+		-- Focus is channeling: trigger channel start manually
+		self:OnChannelStart("focus")
+		return
+	end
+
+	-- Focus not casting/channeling: hide bar
+	self:OnCastStop("focus")
 end
 
 -- ================================================================================
