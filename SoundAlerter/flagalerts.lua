@@ -34,6 +34,9 @@ local table_sort = table.sort
 local math_max = math.max
 local math_ceil = math.ceil
 local math_huge = math.huge
+local math_floor = math.floor
+local math_sin = math.sin
+local math_pi = math.pi
 local tonumber = tonumber
 local type = type
 local pairs = pairs
@@ -194,6 +197,30 @@ function FlagAlerts:OnInitialize()
         chatAlertsSuppressed = 0, -- Chat alerts suppressed during combat (taint prevention)
     }
 
+    -- ===========================
+    -- Flag Toast Dual-Pool System
+    -- ===========================
+    -- Initialize dual pools for flag toast notifications (combat-aware, taint-safe)
+    self.flagSecureToastPool = {}      -- 3 secure frames (out-of-combat, click-to-target works)
+    self.flagInsecureToastPool = {}    -- 3 frames (in-combat, fallback targeting)
+    self.activeFlagToasts = {}         -- Currently displayed toasts (sorted by creationTime)
+    self.flagSwapInProgress = false    -- Guard against concurrent swaps
+    self.flagInsecureSwapBuffer = {}   -- Temp buffer during swap operations
+
+    -- Flag toast metrics
+    self.flagToastMetrics = {
+        toastsShown = 0,               -- Total toasts displayed
+        toastsSwapped = 0,             -- Total frames swapped (insecure→secure on combat exit)
+        swapTime = 0,                  -- Cumulative swap time (ms)
+        maxSwapTime = 0,               -- Worst-case swap time (ms)
+        poolExhaustions = 0,           -- Times pool was full (evicted oldest)
+        pickupToasts = 0,              -- Pickup event toasts
+        dropToasts = 0,                -- Drop event toasts
+        captureToasts = 0,             -- Capture event toasts
+        toastsInCombat = 0,            -- Toasts shown during combat (insecure pool)
+        toastsOutOfCombat = 0,         -- Toasts shown outside combat (secure pool)
+    }
+
     -- Set locale-specific patterns
     local locale = GetLocale()
     self.flagPatterns = LOCALE_PATTERNS[locale] or LOCALE_PATTERNS["enUS"]
@@ -220,6 +247,11 @@ function FlagAlerts:OnEnable()
     -- Register combat events (dual-pool taint system)
     self:RegisterEvent("PLAYER_REGEN_DISABLED")  -- Entering combat
     self:RegisterEvent("PLAYER_REGEN_ENABLED")   -- Leaving combat
+
+    -- Initialize flag toast dual-pool system
+    if sadb.flagToastsEnabled then
+        self:InitializeFlagToastPools()
+    end
 
     -- Schedule persistent cache cleanup only (temporary cache uses lazy cleanup)
     -- Note: Temporary cache now uses on-access lazy cleanup (O(1)) instead of
@@ -304,6 +336,11 @@ end
 function FlagAlerts:PLAYER_REGEN_ENABLED()
     -- Leaving combat
     self.inCombat = false
+
+    -- Trigger swap for flag toasts (insecure → secure)
+    if sadb.flagToastsEnabled then
+        self:SwapInsecureToSecureFlagFrames()
+    end
 
     if sadb.debugmode then
         SoundAlerter:Print("[FlagAlerts] Left combat - all features restored")
@@ -1068,32 +1105,10 @@ function FlagAlerts:TriggerFlagAlert(playerName, playerClass, eventType)
     -- Queue audio (prevents overlap)
     self:QueueAudio(playerClass, eventType)
 
-    -- Show toast
-    if sadb.flagToastsEnabled and SoundAlerter.ProximityToasts then
-        local toastTitle = self:GetToastTitle(eventType)
-
-        -- Determine alert type for background color (enemy = red, friendly = green)
-        local alertType = nil
-        local playerTeam = self:GetPlayerTeam(playerName)
-        local myTeam = self:GetMyTeam()
-        if playerTeam and myTeam then
-            if playerTeam == myTeam then
-                alertType = "FLAG_FRIENDLY"
-            else
-                alertType = "FLAG_ENEMY"
-            end
-        end
-
-        SoundAlerter.ProximityToasts:ShowToast(
-            playerName,
-            playerClass,
-            nil,  -- distance (not applicable)
-            nil,  -- guid (not available from chat events)
-            nil,  -- level (not available)
-            nil,  -- unitToken (not available)
-            toastTitle,  -- Custom title: "FLAG CARRIER!", "FLAG DROPPED!", etc.
-            alertType    -- "FLAG_ENEMY" or "FLAG_FRIENDLY" for background color
-        )
+    -- Show flag toast using dual-pool system
+    if sadb.flagToastsEnabled then
+        local carrierTeam = self:GetPlayerTeam(playerName)
+        self:ShowFlagToast(playerName, playerClass, eventType, carrierTeam)
     end
 
     -- Send chat message
@@ -1146,8 +1161,11 @@ function FlagAlerts:ProcessAudioQueue()
     end
 
     -- Record statistics for flag alerts
-    if sadb.statistics and sadb.statistics.enabled and SoundAlerter.RecordAlert then
-        SoundAlerter:RecordAlert("flagAlerts")
+    if sadb.statistics and sadb.statistics.enabled then
+        local Statistics = SoundAlerter:GetModule("Statistics")
+        if Statistics then
+            Statistics:RecordAlert("flagAlerts")
+        end
     end
 
     -- Schedule objective audio (delayed for composite effect)
@@ -1410,6 +1428,48 @@ SlashCmdList["SAFLAG"] = function(msg)
     elseif msg == "test" then
         SoundAlerter.FlagAlerts:ProcessFlagEvent("Testplayer has taken the flag!")
         SoundAlerter:Print("[FlagAlerts] Test event triggered")
+    elseif msg:match("^testtoast%s*(.*)") then
+        local eventType = msg:match("^testtoast%s+(.+)") or "pickup"
+        eventType = eventType:upper()
+
+        if eventType ~= "PICKUP" and eventType ~= "DROP" and eventType ~= "CAPTURE" then
+            eventType = "PICKUP"
+        end
+
+        SoundAlerter.FlagAlerts:ShowFlagToast("TestPlayer", "ROGUE", eventType, "HORDE_TEAM")
+        SoundAlerter:Print(string_format("[FlagAlerts] Test toast shown: %s", eventType))
+    elseif msg == "toastmetrics" then
+        local m = SoundAlerter.FlagAlerts.flagToastMetrics
+        DEFAULT_CHAT_FRAME:AddMessage("|cffFFD700=== Flag Toast Metrics ===|r")
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Toast Activity]|r")
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Total Toasts: |cffFFFFFF%d|r", m.toastsShown))
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Pickups: |cff00FF00%d|r", m.pickupToasts))
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Drops: |cffFFAA00%d|r", m.dropToasts))
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Captures: |cff00FFFF%d|r", m.captureToasts))
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Pool Utilization]|r")
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Active Toasts: |cffFFFFFF%d / %d|r", #SoundAlerter.FlagAlerts.activeFlagToasts, 3))
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Pool Exhaustions: |cffFF6B6B%d|r", m.poolExhaustions))
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Combat State]|r")
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  In Combat: |cffFF6B6B%d|r (insecure pool)", m.toastsInCombat))
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Out of Combat: |cff00FF00%d|r (secure pool)", m.toastsOutOfCombat))
+        DEFAULT_CHAT_FRAME:AddMessage(" ")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00FFFF[Frame Swaps]|r")
+        DEFAULT_CHAT_FRAME:AddMessage(string_format("  Swaps: |cffFFFFFF%d|r", m.toastsSwapped))
+        if m.toastsSwapped > 0 then
+            local avgSwap = m.swapTime / m.toastsSwapped
+            DEFAULT_CHAT_FRAME:AddMessage(string_format("  Avg Time: |cffFFFFFF%.2fms|r", avgSwap))
+            DEFAULT_CHAT_FRAME:AddMessage(string_format("  Max Time: |cffFFFFFF%.2fms|r", m.maxSwapTime))
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("  No swaps yet")
+        end
+    elseif msg == "cleartoasts" then
+        for i = #SoundAlerter.FlagAlerts.activeFlagToasts, 1, -1 do
+            SoundAlerter.FlagAlerts:ReleaseFlagToast(SoundAlerter.FlagAlerts.activeFlagToasts[i])
+        end
+        SoundAlerter:Print("[FlagAlerts] All active flag toasts cleared")
     elseif msg == "reset" then
         SoundAlerter.FlagAlerts:ResetMetrics()
     else
@@ -1421,6 +1481,919 @@ SlashCmdList["SAFLAG"] = function(msg)
         SoundAlerter:Print("/saflag clearteams - Clear team assignment cache")
         SoundAlerter:Print("/saflag myteam - Show your current team assignment")
         SoundAlerter:Print("/saflag test - Test flag pickup event")
+        SoundAlerter:Print("/saflag testtoast [pickup|drop|capture] - Test flag toast")
+        SoundAlerter:Print("/saflag toastmetrics - Show flag toast metrics")
+        SoundAlerter:Print("/saflag cleartoasts - Clear all active flag toasts")
         SoundAlerter:Print("/saflag reset - Reset performance metrics")
     end
+end
+
+-- ========================================
+-- FLAG TOAST DUAL-POOL SYSTEM
+-- ========================================
+
+-- Constants for flag toast frames
+local MAX_FLAG_TOASTS = 3
+local FLAG_TOAST_WIDTH = 300
+local FLAG_TOAST_HEIGHT = 72
+local FLAG_VERTICAL_SPACING = 8
+local FLAG_FADE_IN_DURATION = 0.2
+local FLAG_FADE_OUT_DURATION = 0.5
+local FLAG_DISPLAY_DURATION = 5.0  -- 5 seconds (longer than proximity's 3s)
+local MAX_SEGMENTS = 30
+
+-- Team color system for visual differentiation
+local TEAM_COLORS = {
+    ALLIANCE_TEAM = {
+        background = {0.05, 0.4, 0.05, 0.85},   -- Green
+        border = {0.1, 0.8, 0.1, 1},            -- Bright green
+    },
+    HORDE_TEAM = {
+        background = {0.4, 0.05, 0.05, 0.85},   -- Red
+        border = {0.8, 0.1, 0.1, 1},            -- Bright red
+    },
+    UNKNOWN_TEAM = {
+        background = {0, 0, 0, 0.85},           -- Black fallback
+        border = {0.8, 0.2, 0.2, 1},            -- Default red
+    },
+}
+
+-- Flag icon textures (WoW 3.3.5a native)
+local FLAG_ICONS = {
+    ALLIANCE_FLAG = "Interface\\WorldStateFrame\\AllianceFlag",
+    HORDE_FLAG = "Interface\\WorldStateFrame\\HordeFlag",
+    NEUTRAL_FLAG = "Interface\\WorldStateFrame\\NeutralFlag",
+}
+
+-- ========================================
+-- RAINBOW BORDER ANIMATION
+-- ========================================
+-- Generates smooth rainbow color cycling for border animation
+-- Matches proximitytoasts.lua:141-148 implementation exactly
+local function GetRainbowColor(time)
+    local frequency = math_pi * 2 / 6.0  -- 6-second full cycle
+    local r = math_sin(frequency * time + 0) * 0.5 + 0.5
+    local g = math_sin(frequency * time + 2.0944) * 0.5 + 0.5  -- 120 degrees offset
+    local b = math_sin(frequency * time + 4.1888) * 0.5 + 0.5  -- 240 degrees offset
+
+    return r, g, b
+end
+
+-- ========================================
+-- SMOOTH COUNTDOWN SEGMENT FADING
+-- ========================================
+-- Updates countdown bar segments with smooth alpha fading
+-- Matches proximitytoasts.lua:175-194 implementation exactly
+local function UpdateFlagCountdownSegments(toast, displayElapsed)
+    if not toast.countdownBar or not toast.cachedSegmentData then
+        return
+    end
+
+    local duration = toast.cachedSegmentData.duration
+    local secondsElapsed = math_floor(displayElapsed)
+    local segmentProgress = (displayElapsed % 1)  -- 0.0-1.0 fractional progress
+    local currentSegmentIndex = secondsElapsed + 1
+
+    -- SMOOTH FADE: Current segment fades from 1.0 to 0.0 over 1 second
+    if currentSegmentIndex <= duration and toast.countdownBar.segments[currentSegmentIndex] then
+        toast.countdownBar.segments[currentSegmentIndex]:SetAlpha(1 - segmentProgress)
+    end
+
+    -- Hide already elapsed segments (ensure they stay at 0 alpha)
+    local lastHidden = toast.cachedSegmentData.lastHiddenSegment or 0
+    for i = lastHidden + 1, secondsElapsed do
+        if toast.countdownBar.segments[i] then
+            toast.countdownBar.segments[i]:SetAlpha(0)
+        end
+    end
+    toast.cachedSegmentData.lastHiddenSegment = secondsElapsed
+end
+
+-- ========================================
+-- CREATE FLAG TOAST FRAME
+-- ========================================
+-- Creates a flag toast frame (secure or insecure based on combat state)
+-- Pattern based on proximitytoasts.lua:197-380
+function FlagAlerts:CreateFlagToastFrame(index, isSecure)
+    local frameName = isSecure and "SoundAlerterFlagSecureToast"..index or "SoundAlerterFlagInsecureToast"..index
+    local toast = CreateFrame("Button", frameName, UIParent)
+    toast:SetSize(FLAG_TOAST_WIDTH, FLAG_TOAST_HEIGHT)
+    toast:SetFrameStrata("HIGH")
+    toast:SetFrameLevel(100)
+    toast:Hide()
+    toast:SetAlpha(0)
+
+    -- Backdrop (team-colored background/border)
+    toast:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = {left = 4, right = 4, top = 4, bottom = 4}
+    })
+    toast:SetBackdropColor(0, 0, 0, 0.85)  -- Default black (will be set dynamically)
+    toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)  -- Default red
+
+    -- Icon texture (flag or class icon, 56×56, left side)
+    toast.icon = toast:CreateTexture(nil, "ARTWORK")
+    toast.icon:SetSize(56, 56)
+    toast.icon:SetPoint("LEFT", 8, 0)
+
+    -- Title text (top, large font)
+    toast.titleText = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    toast.titleText:SetPoint("TOPLEFT", toast.icon, "TOPRIGHT", 10, -4)
+    toast.titleText:SetPoint("RIGHT", -8, 0)
+    toast.titleText:SetJustifyH("LEFT")
+    toast.titleText:SetTextColor(1, 1, 1)
+
+    -- Detail text (below title, normal font)
+    toast.detailText = toast:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    toast.detailText:SetPoint("TOPLEFT", toast.titleText, "BOTTOMLEFT", 0, -4)
+    toast.detailText:SetPoint("RIGHT", -8, 0)
+    toast.detailText:SetJustifyH("LEFT")
+    toast.detailText:SetTextColor(0.8, 0.8, 0.8)
+
+    -- Countdown bar (bottom, 3px height, 30 segments)
+    toast.countdownBar = CreateFrame("Frame", nil, toast)
+    toast.countdownBar:SetHeight(3)
+    toast.countdownBar:SetPoint("BOTTOMLEFT", toast, "BOTTOMLEFT", 4, 4)
+    toast.countdownBar:SetPoint("BOTTOMRIGHT", toast, "BOTTOMRIGHT", -4, 4)
+    toast.countdownBar:SetFrameLevel(toast:GetFrameLevel() + 2)
+    toast.countdownBar.segments = {}
+
+    -- Pre-allocate countdown segments (performance optimization)
+    for i = 1, MAX_SEGMENTS do
+        local segment = toast.countdownBar:CreateTexture(nil, "OVERLAY")
+        segment:SetTexture("Interface\\Buttons\\WHITE8X8")
+        segment:SetHeight(3)
+        segment:SetVertexColor(0.8, 0.2, 0.2, 1)  -- Red segments (will be team-colored)
+        segment:Hide()
+        toast.countdownBar.segments[i] = segment
+    end
+
+    -- Frame lifecycle state
+    toast.startTime = 0
+    toast.displayDuration = 0
+    toast.elapsedTime = 0
+    toast.poolIndex = index
+    toast.inUse = false
+    toast.creationTime = 0
+
+    -- Pause state (for hover interactions)
+    toast.pauseState = {
+        active = false,
+        startTime = 0,
+        totalTime = 0
+    }
+
+    -- Countdown bar cache
+    toast.cachedSegmentData = nil
+
+    -- User data (flag-specific schema)
+    toast.userData = {
+        unitName = nil,        -- Player name
+        className = nil,       -- From cache/GUID
+        eventType = nil,       -- "PICKUP", "DROP", "CAPTURE"
+        carrierTeam = nil,     -- "ALLIANCE_TEAM" or "HORDE_TEAM"
+        timestamp = nil,       -- GetTime() when event occurred
+    }
+
+    toast.isSecure = isSecure
+
+    -- Secure button (click-to-target, out-of-combat only)
+    if isSecure then
+        local secureButton = CreateFrame("Button", frameName.."SecureAction", UIParent, "SecureActionButtonTemplate")
+        secureButton:SetAllPoints(toast)
+        secureButton:SetFrameStrata("HIGH")
+        secureButton:SetFrameLevel(101)
+        secureButton:Hide()
+        secureButton:RegisterForClicks("LeftButtonDown")
+        secureButton:SetAttribute("type1", "macro")
+
+        -- Hover handlers (pause countdown)
+        secureButton:SetScript("OnEnter", function(self)
+            if not toast.inUse or toast.pendingDismiss then
+                return
+            end
+
+            local elapsed = GetTime() - toast.startTime - toast.pauseState.totalTime
+            if elapsed >= FLAG_FADE_IN_DURATION and elapsed < (FLAG_FADE_IN_DURATION + toast.displayDuration) then
+                toast.pauseState.active = true
+                toast.pauseState.startTime = GetTime()
+            end
+        end)
+
+        secureButton:SetScript("OnLeave", function(self)
+            if toast.pauseState.active then
+                toast.pauseState.active = false
+                local pauseDuration = GetTime() - toast.pauseState.startTime
+                toast.pauseState.totalTime = toast.pauseState.totalTime + pauseDuration
+                toast.pauseState.startTime = 0
+            end
+        end)
+
+        toast.secureButton = secureButton
+    end
+
+    -- Insecure frame click handler (fallback targeting via unit scanning)
+    toast:EnableMouse(true)
+    toast:RegisterForClicks("LeftButtonDown")
+    toast:SetScript("OnClick", function(self, button)
+        if self.isSecure then
+            return  -- Secure frames use separate button
+        end
+
+        local sadb = SoundAlerter.db1.profile
+
+        if not sadb.flagToastsEnabled then
+            return
+        end
+
+        local targetName = self.userData and self.userData.unitName
+
+        if not targetName then
+            return
+        end
+
+        -- Fallback targeting (unit scanning, works in combat)
+        -- Uses TargetByNameCompat from proximitytoasts.lua
+        if SoundAlerter.ProximityToasts and SoundAlerter.ProximityToasts.TargetByNameCompat then
+            local targetSuccess = SoundAlerter.ProximityToasts.TargetByNameCompat(targetName, nil)
+
+            if not targetSuccess and sadb.debugmode then
+                SoundAlerter:Print("[FlagAlerts] Failed to target " .. targetName .. " (unit not visible)")
+            end
+        end
+
+        -- Dismiss toast after 0.15s delay
+        local dismissTime = GetTime() + 0.15
+        self.pendingDismiss = true
+        self.dismissTime = dismissTime
+
+        self:SetScript("OnUpdate", function(frame, elapsed)
+            if frame.pendingDismiss and GetTime() >= frame.dismissTime then
+                frame.pendingDismiss = false
+                frame:SetScript("OnUpdate", nil)
+                FlagAlerts:ReleaseFlagToast(frame)
+            end
+        end)
+    end)
+
+    -- Hover handlers (pause countdown on hover)
+    toast:SetScript("OnEnter", function(self)
+        if not self.inUse or self.pendingDismiss then
+            return
+        end
+
+        local elapsed = GetTime() - self.startTime - self.pauseState.totalTime
+        if elapsed >= FLAG_FADE_IN_DURATION and elapsed < (FLAG_FADE_IN_DURATION + self.displayDuration) then
+            self.pauseState.active = true
+            self.pauseState.startTime = GetTime()
+        end
+    end)
+
+    toast:SetScript("OnLeave", function(self)
+        if self.pauseState.active then
+            self.pauseState.active = false
+            local pauseDuration = GetTime() - self.pauseState.startTime
+            self.pauseState.totalTime = self.pauseState.totalTime + pauseDuration
+            self.pauseState.startTime = 0
+        end
+    end)
+
+    return toast
+end
+
+-- ========================================
+-- ACQUIRE FLAG TOAST
+-- ========================================
+-- Acquires a flag toast frame from the appropriate pool (combat-aware)
+-- Pattern based on proximitytoasts.lua:442-463
+function FlagAlerts:AcquireFlagToast()
+    -- Combat-aware pool selection
+    local pool = self.inCombat and self.flagInsecureToastPool or self.flagSecureToastPool
+
+    -- Find available frame in pool
+    for i = 1, MAX_FLAG_TOASTS do
+        if pool[i] and not pool[i].inUse then
+            pool[i].inUse = true
+            return pool[i]
+        end
+    end
+
+    -- Pool exhausted: evict oldest active toast and reuse it
+    if #self.activeFlagToasts > 0 then
+        local oldest = self.activeFlagToasts[1]
+        self:ReleaseFlagToast(oldest)
+        oldest.inUse = true
+        self.flagToastMetrics.poolExhaustions = self.flagToastMetrics.poolExhaustions + 1
+
+        if sadb.debugmode then
+            SoundAlerter:Print("[FlagAlerts] Pool exhausted, evicted oldest toast")
+        end
+
+        return oldest
+    end
+
+    -- Should never happen (pool always has frames)
+    return nil
+end
+
+-- ========================================
+-- RELEASE FLAG TOAST
+-- ========================================
+-- Releases a flag toast frame back to the pool
+-- Pattern based on proximitytoasts.lua:465-521
+function FlagAlerts:ReleaseFlagToast(toast)
+    if not toast then return end
+
+    -- Stop OnUpdate script
+    toast:SetScript("OnUpdate", nil)
+
+    -- Hide frame and DISABLE MOUSE INTERACTION
+    -- CRITICAL: Disabling mouse prevents invisible frame from intercepting clicks
+    -- This fixes the bug where hidden toasts could change player's target
+    toast:Hide()
+    toast:SetAlpha(0)
+    toast:SetScale(1.0)  -- Reset scale (used in fade-in animation)
+    toast:EnableMouse(false)  -- Prevent invisible frame from stealing clicks
+
+    -- Clear visual content
+    toast.titleText:SetText("")
+    toast.detailText:SetText("")
+    toast.icon:SetTexture(nil)
+
+    -- Reset backdrop colors to default
+    toast:SetBackdropColor(0, 0, 0, 0.85)
+    toast:SetBackdropBorderColor(0.8, 0.2, 0.2, 1)
+
+    -- Hide all countdown segments and reset alpha
+    if toast.countdownBar and toast.countdownBar.segments then
+        for i = 1, MAX_SEGMENTS do
+            if toast.countdownBar.segments[i] then
+                toast.countdownBar.segments[i]:Hide()
+                toast.countdownBar.segments[i]:SetAlpha(1)  -- Reset alpha for reuse
+            end
+        end
+    end
+
+    -- Clear secure button attributes and disable mouse (only out of combat)
+    if toast.secureButton and not InCombatLockdown() then
+        toast.secureButton:Hide()
+        toast.secureButton:EnableMouse(false)  -- Disable secure button mouse
+        toast.secureButton:SetAttribute("macrotext1", nil)
+        toast.secureButton:SetAttribute("macrotext", nil)
+    elseif toast.secureButton then
+        -- In combat: can only hide, can't modify attributes
+        toast.secureButton:Hide()
+        -- Note: Cannot call EnableMouse() on secure frames during combat lockdown
+    end
+
+    -- Reset timing state
+    toast.startTime = 0
+    toast.displayDuration = 0
+    toast.elapsedTime = 0
+    toast.creationTime = 0
+
+    -- Reset pause state
+    toast.pauseState.active = false
+    toast.pauseState.startTime = 0
+    toast.pauseState.totalTime = 0
+
+    -- Clear countdown bar cache
+    toast.cachedSegmentData = nil
+
+    -- Clear user data
+    toast.userData.unitName = nil
+    toast.userData.className = nil
+    toast.userData.eventType = nil
+    toast.userData.carrierTeam = nil
+    toast.userData.timestamp = nil
+
+    -- Clear dismiss state
+    toast.pendingDismiss = false
+    toast.dismissTime = nil
+
+    -- Mark as available
+    toast.inUse = false
+
+    -- Remove from active toasts list
+    for i = #self.activeFlagToasts, 1, -1 do
+        if self.activeFlagToasts[i] == toast then
+            table.remove(self.activeFlagToasts, i)
+            break
+        end
+    end
+
+    -- Update layout (reposition remaining toasts)
+    self:UpdateFlagToastLayout()
+end
+
+-- ========================================
+-- INITIALIZE FLAG TOAST POOLS
+-- ========================================
+-- Initializes both secure and insecure toast pools
+-- Pattern based on proximitytoasts.lua:402-420
+function FlagAlerts:InitializeFlagToastPools()
+    -- Create secure pool (out-of-combat use, click-to-target works)
+    for i = 1, MAX_FLAG_TOASTS do
+        self.flagSecureToastPool[i] = self:CreateFlagToastFrame(i, true)
+    end
+
+    -- Create insecure pool (in-combat use, fallback targeting)
+    for i = 1, MAX_FLAG_TOASTS do
+        self.flagInsecureToastPool[i] = self:CreateFlagToastFrame(i, false)
+    end
+
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts] Initialized dual pools (%d secure + %d insecure frames, ~24 KB)",
+            MAX_FLAG_TOASTS, MAX_FLAG_TOASTS))
+    end
+end
+
+-- ========================================
+-- UPDATE FLAG TOAST LAYOUT
+-- ========================================
+-- Positions flag toasts vertically, stacked below proximity toasts
+-- Pattern based on proximitytoasts.lua:719-736
+function FlagAlerts:UpdateFlagToastLayout()
+    local sadb = SoundAlerter.db1.profile
+
+    -- Base position (below proximity toasts at Y=-200)
+    local baseX = (sadb.flagToasts and sadb.flagToasts.positionX) or 0
+    local baseY = (sadb.flagToasts and sadb.flagToasts.positionY) or -300
+
+    -- Sort active toasts by creation time (oldest first, FIFO eviction)
+    table.sort(self.activeFlagToasts, function(a, b)
+        return a.creationTime < b.creationTime
+    end)
+
+    -- Stack toasts vertically
+    for i, toast in ipairs(self.activeFlagToasts) do
+        toast:ClearAllPoints()
+        if i == 1 then
+            -- First toast: position at base location
+            toast:SetPoint("TOP", UIParent, "TOP", baseX, baseY)
+        else
+            -- Subsequent toasts: stack below previous
+            toast:SetPoint("TOP", self.activeFlagToasts[i-1], "BOTTOM", 0, -FLAG_VERTICAL_SPACING)
+        end
+    end
+end
+
+-- ========================================
+-- SHOW FLAG TOAST
+-- ========================================
+-- Displays a flag toast notification with team colors and animation
+-- Pattern based on proximitytoasts.lua:762-965
+function FlagAlerts:ShowFlagToast(playerName, playerClass, eventType, carrierTeam)
+    local sadb = SoundAlerter.db1.profile
+
+    -- Acquire frame from appropriate pool (combat-aware)
+    local toast = self:AcquireFlagToast()
+    if not toast then
+        if sadb.debugmode then
+            SoundAlerter:Print("[FlagAlerts] Failed to acquire toast frame")
+        end
+        return
+    end
+
+    -- Determine visual style based on team
+    local myTeam = self:GetMyTeam()
+    local isEnemy = carrierTeam and myTeam and (carrierTeam ~= myTeam)
+
+    -- Set team colors (green for friendly, red for enemy)
+    local colors = TEAM_COLORS[carrierTeam] or TEAM_COLORS.UNKNOWN_TEAM
+    toast:SetBackdropColor(unpack(colors.background))
+    toast:SetBackdropBorderColor(unpack(colors.border))
+
+    -- Set icon (flag or class icon based on settings)
+    local useClassIcons = sadb.flagToastsUseClassIcons ~= false  -- Default true
+    if useClassIcons and playerClass then
+        -- Use class icon (reuse from existing CLASS_ICONS or fallback)
+        local classIconPath = "Interface\\Icons\\ClassIcon_" .. playerClass
+        toast.icon:SetTexture(classIconPath)
+    else
+        -- Use flag icon based on carrier's team
+        local flagIcon
+        if carrierTeam == "ALLIANCE_TEAM" then
+            flagIcon = FLAG_ICONS.HORDE_FLAG  -- Alliance carrier holding Horde flag
+        elseif carrierTeam == "HORDE_TEAM" then
+            flagIcon = FLAG_ICONS.ALLIANCE_FLAG  -- Horde carrier holding Alliance flag
+        else
+            flagIcon = FLAG_ICONS.NEUTRAL_FLAG  -- Fallback
+        end
+        toast.icon:SetTexture(flagIcon)
+    end
+    toast.icon:Show()
+
+    -- Set title text based on event type
+    local titleText
+    if eventType == "PICKUP" then
+        titleText = "FLAG CARRIER!"
+    elseif eventType == "DROP" then
+        titleText = "FLAG DROPPED!"
+    elseif eventType == "CAPTURE" then
+        titleText = "FLAG CAPTURED!"
+    else
+        titleText = "FLAG EVENT"
+    end
+    toast.titleText:SetText(titleText)
+
+    -- Set detail text (class + name)
+    local detailText = playerName
+    if playerClass and playerClass ~= "UNKNOWN" then
+        detailText = playerClass .. " - " .. playerName
+    end
+    toast.detailText:SetText(detailText)
+
+    -- Store user data
+    toast.userData.unitName = playerName
+    toast.userData.className = playerClass
+    toast.userData.eventType = eventType
+    toast.userData.carrierTeam = carrierTeam
+    toast.userData.timestamp = GetTime()
+
+    -- Set timing state
+    toast.creationTime = GetTime()
+    toast.startTime = GetTime()
+    toast.displayDuration = sadb.flagToastDisplayDuration or FLAG_DISPLAY_DURATION
+    toast.elapsedTime = 0
+
+    -- Reset pause state
+    toast.pauseState.active = false
+    toast.pauseState.startTime = 0
+    toast.pauseState.totalTime = 0
+
+    -- Configure countdown bar (5 segments for 5 seconds)
+    local duration = math.ceil(toast.displayDuration)
+    local barWidth = toast.countdownBar:GetWidth()
+    local segmentWidth = barWidth / duration
+
+    toast.cachedSegmentData = {
+        duration = duration,
+        segmentWidth = segmentWidth,
+        lastHiddenSegment = 0
+    }
+
+    -- Show and position countdown segments (with full alpha for smooth fading)
+    for i = 1, duration do
+        if i <= MAX_SEGMENTS and toast.countdownBar.segments[i] then
+            local segment = toast.countdownBar.segments[i]
+            segment:ClearAllPoints()
+            segment:SetPoint("LEFT", toast.countdownBar, "LEFT", (i-1) * segmentWidth, 0)
+            segment:SetWidth(segmentWidth - 2)  -- 2px gap between segments
+            segment:SetVertexColor(unpack(colors.border))  -- Match border color
+            segment:SetAlpha(1)  -- Full alpha for smooth countdown fading
+            segment:Show()
+        end
+    end
+
+    -- Hide unused segments
+    for i = duration + 1, MAX_SEGMENTS do
+        if toast.countdownBar.segments[i] then
+            toast.countdownBar.segments[i]:Hide()
+        end
+    end
+
+    -- Configure secure button macro (if secure frame, out of combat)
+    if toast.secureButton and not InCombatLockdown() then
+        local macroText = "/target " .. playerName
+        toast.secureButton:SetAttribute("macrotext1", macroText)
+        toast.secureButton:SetAttribute("macrotext", macroText)
+        toast.secureButton:Show()
+    end
+
+    -- Start OnUpdate animation handler
+    toast:SetScript("OnUpdate", function(self, elapsed)
+        if not self.inUse then
+            self:SetScript("OnUpdate", nil)
+            return
+        end
+
+        -- Skip updates if paused (hovering)
+        if self.pauseState.active then
+            return
+        end
+
+        local currentTime = GetTime()
+        local timeSinceStart = currentTime - self.startTime - self.pauseState.totalTime
+
+        -- RAINBOW BORDER: Animate during ALL phases (matches proximitytoasts.lua:930-933)
+        -- Uses shared setting with proximity toasts (same toggle controls both)
+        if sadb.proximityToasts and sadb.proximityToasts.rainbowBorder then
+            local r, g, b = GetRainbowColor(currentTime)
+            self:SetBackdropBorderColor(r, g, b, 1)
+        end
+        -- Note: When rainbow is disabled, border uses team colors set in ShowFlagToast()
+
+        -- Phase 1: Fade in (0.2s)
+        if timeSinceStart < FLAG_FADE_IN_DURATION then
+            local progress = timeSinceStart / FLAG_FADE_IN_DURATION
+            self:SetAlpha(progress)
+            -- Scale animation during fade-in (matches proximity toasts)
+            local scale = 1.15 - (0.15 * progress)
+            self:SetScale(scale)
+
+            if self.secureButton then
+                self.secureButton:SetAlpha(progress)
+            end
+
+            return
+        end
+
+        -- Phase 2: Display (5s)
+        if timeSinceStart < (FLAG_FADE_IN_DURATION + self.displayDuration) then
+            self:SetAlpha(1)
+            self:SetScale(1.0)
+
+            if self.secureButton then
+                self.secureButton:SetAlpha(1)
+            end
+
+            -- SMOOTH COUNTDOWN FADING (matches proximitytoasts.lua:946)
+            local displayElapsed = timeSinceStart - FLAG_FADE_IN_DURATION
+            UpdateFlagCountdownSegments(self, displayElapsed)
+
+            return
+        end
+
+        -- Phase 3: Fade out (0.5s)
+        local fadeOutTime = timeSinceStart - (FLAG_FADE_IN_DURATION + self.displayDuration)
+        if fadeOutTime < FLAG_FADE_OUT_DURATION then
+            local fadeProgress = fadeOutTime / FLAG_FADE_OUT_DURATION
+            self:SetAlpha(1 - fadeProgress)
+
+            if self.secureButton then
+                self.secureButton:SetAlpha(1 - fadeProgress)
+            end
+
+            -- Ensure all countdown segments are hidden during fade-out
+            if self.countdownBar and self.cachedSegmentData then
+                local duration = self.cachedSegmentData.duration
+                for i = 1, duration do
+                    if self.countdownBar.segments[i] then
+                        self.countdownBar.segments[i]:SetAlpha(0)
+                    end
+                end
+            end
+
+            return
+        end
+
+        -- Phase 4: Complete, release toast
+        self:SetScript("OnUpdate", nil)
+        FlagAlerts:ReleaseFlagToast(self)
+    end)
+
+    -- Show toast and RE-ENABLE mouse interaction
+    -- (Mouse was disabled in ReleaseFlagToast to prevent invisible frame clicks)
+    toast:Show()
+    toast:SetAlpha(0)  -- Start transparent for fade-in
+    toast:EnableMouse(true)  -- Re-enable mouse for click-to-target
+
+    -- Re-enable secure button mouse if applicable
+    if toast.secureButton and not InCombatLockdown() then
+        toast.secureButton:EnableMouse(true)
+    end
+
+    -- Add to active toasts
+    table.insert(self.activeFlagToasts, toast)
+
+    -- Update layout (position toasts)
+    self:UpdateFlagToastLayout()
+
+    -- Update metrics
+    self.flagToastMetrics.toastsShown = self.flagToastMetrics.toastsShown + 1
+
+    if self.inCombat then
+        self.flagToastMetrics.toastsInCombat = self.flagToastMetrics.toastsInCombat + 1
+    else
+        self.flagToastMetrics.toastsOutOfCombat = self.flagToastMetrics.toastsOutOfCombat + 1
+    end
+
+    if eventType == "PICKUP" then
+        self.flagToastMetrics.pickupToasts = self.flagToastMetrics.pickupToasts + 1
+    elseif eventType == "DROP" then
+        self.flagToastMetrics.dropToasts = self.flagToastMetrics.dropToasts + 1
+    elseif eventType == "CAPTURE" then
+        self.flagToastMetrics.captureToasts = self.flagToastMetrics.captureToasts + 1
+    end
+
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts] Showed flag toast: %s (%s) - %s | Pool: %s | Active: %d/%d",
+            playerName, playerClass or "Unknown", eventType,
+            self.inCombat and "Insecure" or "Secure",
+            #self.activeFlagToasts, MAX_FLAG_TOASTS))
+    end
+end
+
+-- ========================================
+-- COPY FLAG TOAST DATA
+-- ========================================
+-- Copies all state from one toast frame to another during swap
+-- Pattern based on proximitytoasts.lua:536-616
+function FlagAlerts:CopyFlagToastData(oldFrame, newFrame)
+    if not oldFrame or not newFrame then return false end
+
+    -- Copy user data
+    newFrame.userData.unitName = oldFrame.userData.unitName
+    newFrame.userData.className = oldFrame.userData.className
+    newFrame.userData.eventType = oldFrame.userData.eventType
+    newFrame.userData.carrierTeam = oldFrame.userData.carrierTeam
+    newFrame.userData.timestamp = oldFrame.userData.timestamp
+
+    -- Copy timing state
+    newFrame.startTime = oldFrame.startTime
+    newFrame.displayDuration = oldFrame.displayDuration
+    newFrame.elapsedTime = oldFrame.elapsedTime
+    newFrame.creationTime = oldFrame.creationTime
+
+    -- Copy pause state
+    newFrame.pauseState.active = oldFrame.pauseState.active
+    newFrame.pauseState.startTime = oldFrame.pauseState.active and GetTime() or 0
+    newFrame.pauseState.totalTime = oldFrame.pauseState.totalTime
+
+    -- Copy countdown bar cache
+    if oldFrame.cachedSegmentData then
+        newFrame.cachedSegmentData = {
+            duration = oldFrame.cachedSegmentData.duration,
+            segmentWidth = oldFrame.cachedSegmentData.segmentWidth,
+            lastHiddenSegment = oldFrame.cachedSegmentData.lastHiddenSegment
+        }
+
+        -- Copy segment visibility and layout
+        for i = 1, oldFrame.cachedSegmentData.duration do
+            if i <= MAX_SEGMENTS then
+                local oldSegment = oldFrame.countdownBar.segments[i]
+                local newSegment = newFrame.countdownBar.segments[i]
+                if oldSegment and newSegment then
+                    newSegment:ClearAllPoints()
+                    newSegment:SetPoint("LEFT", newFrame.countdownBar, "LEFT",
+                        (i-1) * newFrame.cachedSegmentData.segmentWidth, 0)
+                    newSegment:SetWidth(newFrame.cachedSegmentData.segmentWidth - 2)
+
+                    -- Copy visibility
+                    if oldSegment:IsShown() then
+                        newSegment:Show()
+                    else
+                        newSegment:Hide()
+                    end
+
+                    -- Copy color
+                    local r, g, b, a = oldSegment:GetVertexColor()
+                    newSegment:SetVertexColor(r, g, b, a)
+                end
+            end
+        end
+    end
+
+    -- Copy visuals
+    newFrame.icon:SetTexture(oldFrame.icon:GetTexture())
+    newFrame.titleText:SetText(oldFrame.titleText:GetText() or "")
+    newFrame.detailText:SetText(oldFrame.detailText:GetText() or "")
+
+    -- Copy backdrop colors
+    local r, g, b, a = oldFrame:GetBackdropColor()
+    newFrame:SetBackdropColor(r, g, b, a)
+
+    r, g, b, a = oldFrame:GetBackdropBorderColor()
+    newFrame:SetBackdropBorderColor(r, g, b, a)
+
+    -- Copy alpha
+    newFrame:SetAlpha(oldFrame:GetAlpha())
+
+    -- Configure secure button macro (only if out of combat)
+    if newFrame.secureButton and not InCombatLockdown() then
+        local unitName = newFrame.userData.unitName
+        if unitName then
+            local macroText = "/target " .. unitName
+            newFrame.secureButton:SetAttribute("macrotext1", macroText)
+            newFrame.secureButton:SetAttribute("macrotext", macroText)
+            newFrame.secureButton:Show()
+            newFrame.secureButton:SetAlpha(newFrame:GetAlpha())
+        end
+    end
+
+    -- Mark as in use
+    newFrame.inUse = true
+
+    -- Copy OnUpdate script
+    newFrame:SetScript("OnUpdate", oldFrame:GetScript("OnUpdate"))
+
+    return true
+end
+
+-- ========================================
+-- SWAP INSECURE TO SECURE FLAG FRAMES
+-- ========================================
+-- Swaps insecure flag toasts to secure frames when exiting combat
+-- Pattern based on proximitytoasts.lua:618-717
+function FlagAlerts:SwapInsecureToSecureFlagFrames()
+    -- Guard: Don't swap during combat or if already swapping
+    if InCombatLockdown() or self.flagSwapInProgress then
+        return
+    end
+
+    self.flagSwapInProgress = true
+    local startTime = debugprofilestop()
+
+    -- Find insecure frames to swap
+    wipe(self.flagInsecureSwapBuffer)
+    for i = #self.activeFlagToasts, 1, -1 do
+        if self.activeFlagToasts[i] and not self.activeFlagToasts[i].isSecure then
+            table.insert(self.flagInsecureSwapBuffer, {
+                index = i,
+                frame = self.activeFlagToasts[i]
+            })
+        end
+    end
+
+    -- Early exit if no insecure frames
+    if #self.flagInsecureSwapBuffer == 0 then
+        self.flagSwapInProgress = false
+        return
+    end
+
+    -- Check available secure frames in pool
+    local availableSecure = 0
+    for i = 1, MAX_FLAG_TOASTS do
+        if self.flagSecureToastPool[i] and not self.flagSecureToastPool[i].inUse then
+            availableSecure = availableSecure + 1
+        end
+    end
+
+    -- If insufficient secure frames, evict oldest secure toasts
+    if availableSecure < #self.flagInsecureSwapBuffer then
+        local needed = #self.flagInsecureSwapBuffer - availableSecure
+
+        for i = 1, #self.activeFlagToasts do
+            if needed <= 0 then break end
+
+            local toast = self.activeFlagToasts[i]
+            if toast and toast.isSecure then
+                self:ReleaseFlagToast(toast)
+                availableSecure = availableSecure + 1
+                needed = needed - 1
+            end
+        end
+    end
+
+    -- Perform swap
+    local swappedCount = 0
+    for _, data in ipairs(self.flagInsecureSwapBuffer) do
+        local oldFrame = data.frame
+        local newFrame = nil
+
+        -- Find available secure frame
+        for i = 1, MAX_FLAG_TOASTS do
+            if self.flagSecureToastPool[i] and not self.flagSecureToastPool[i].inUse then
+                newFrame = self.flagSecureToastPool[i]
+                newFrame.inUse = true
+                break
+            end
+        end
+
+        if not newFrame then
+            if sadb.debugmode then
+                SoundAlerter:Print("[FlagAlerts SWAP] No secure frames available, aborting swap")
+            end
+            break
+        end
+
+        -- Copy state from insecure to secure
+        if self:CopyFlagToastData(oldFrame, newFrame) then
+            -- Update active toasts list
+            self.activeFlagToasts[data.index] = newFrame
+
+            -- Show new frame, release old frame
+            newFrame:Show()
+            self:ReleaseFlagToast(oldFrame)
+
+            swappedCount = swappedCount + 1
+        end
+    end
+
+    -- Update layout if any swaps occurred
+    if swappedCount > 0 then
+        self:UpdateFlagToastLayout()
+    end
+
+    -- Track metrics
+    local elapsed = debugprofilestop() - startTime
+    self.flagToastMetrics.toastsSwapped = self.flagToastMetrics.toastsSwapped + swappedCount
+    self.flagToastMetrics.swapTime = self.flagToastMetrics.swapTime + elapsed
+    self.flagToastMetrics.maxSwapTime = math.max(self.flagToastMetrics.maxSwapTime, elapsed)
+
+    if sadb.debugmode then
+        SoundAlerter:Print(string_format("[FlagAlerts SWAP] Swapped %d frames in %.2fms",
+            swappedCount, elapsed))
+    end
+
+    -- Warn if swap exceeded budget (4ms target)
+    if elapsed > 4.0 then
+        SoundAlerter:Print(string_format("[FlagAlerts SWAP WARNING] Swap took %.2fms (exceeds 4ms budget)",
+            elapsed))
+    end
+
+    self.flagSwapInProgress = false
 end

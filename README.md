@@ -1,158 +1,210 @@
-# SoundAlerter for Project Ascension (Bronzebeard)
+# SoundAlerter - Complete PvP Combat Suite
 
-![Version](https://img.shields.io/badge/version-1.4.57-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg)
+![Version](https://img.shields.io/badge/version-1.4.82-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg) ![Platform](https://img.shields.io/badge/platform-Ascension-purple.svg)
+
+**From Simple Alerts to Complete Combat Suite**
+Voice callouts evolved into a comprehensive PvP combat suite for WoW Ascension.
 <p align="center">
 <img src="Media/soundalerter.png" alt="SoundAlerter Addon Logo" width="256"/>
 </p>
+---
 
-**Never miss critical enemy cooldowns again.**  SoundAlerter provides real-time, high-priority audio and visual cues to give you the competitive edge in World of Warcraft PvP.
+## A Different SoundAlerter 
+
+SoundAlerter is a combat system built for competitive PvP. Eight integrated modules provide awareness of combat events.
+
+**Performance**: Sub-millisecond latency, <500KB memory footprint, optimized to the brim. 
+**Ascension Support**: Native support for retail and 11-prefixed spell IDs. 
 
 ---
 
-## Recent Updates (v1.4.56)
+## The Complete Suite
 
-**Resource Management:**
-- Unified resource bars (Energy/Rage, Health/Mana) with full customization and persistent positioning
-- Combo points bar with celebration animations and optional text display
-<p align="center">
-<img src="Media/resource_mgt.gif?raw=true" alt="Resource Mgt" width="256"/>
-</p>
+### Voice Alerts - Instant Audio Callouts
+450+ critical spell callouts with professional voice alerts.
 
-**Battleground Alerts (CTF):**
-- Flag pickup, drop, capture, and return detection via combat log auras and chat messages
-- Team-aware filtering (friendly/enemy) with persistent class and team caching
-- Toast notifications with color-coded backgrounds (red for enemy, green for friendly)
-- Composite audio alerts (class name + objective)
-<p align="center">
-<img src="Media/toast_bg_flagpickup.gif?raw=true" alt="BG Flag Alerts" width="256"/>
-</p>
+[To extend: Use https://luvvoice.com/ English (United Kingdom) / Sonia with Rate 10% speed-up]
 
-**Proximity Alerts:**
-- Dual-pool toast system (secure/insecure frames) for combat taint protection
-- Hover-to-pause countdown with visual segment timer
-- Click-to-target and Shift-click-to-focus functionality
-- Rainbow border option and class-colored backgrounds
+**Features:**
+* Defensive cooldown tracking (Ice Block, Shield Wall, Divine Shield)
+* CC alerts (Cyclone, Polymorph, Fear, Stuns)
+* Interrupt notifications (Kick, Counterspell, Mind Freeze)
+* Enemy and friendly spell differentiation
+* English and Spanish voice packs
+
+**Configuration**: `/sa` -> Voice Alerts tab
+
+---
+
+### Proximity Alerts - Range Detection
+Visual and audio alerts for nearby enemies. Sticky toasts include instant targeting and countdown timers.
 <p align="center">
 <img src="Media/toast_sticky.gif?raw=true" alt="Sticky Toast" width="256"/>
 </p>
+**Features:**
+* Automatic enemy detection with configurable range
+* Persistent toasts until enemy leaves range
+* One-click targeting from toast
+* PvE mode filtering
+* <1ms targeting latency
 
-
-**Statistics Tracking:**
-- Session and all-time alert tracking by category (spell, proximity, flag, trinket)
-- Top spells with LRU eviction, zone-based breakdowns, and reset functionality
-
-**Spell Finder (Developer Tools):**
-- Database of 12,000+ spells with LRU caching for instant repeated searches
-- Click actions: Left-click to copy spell ID, Shift+Left-click to copy description
-- Non-blocking scan with progress bar (prevents UI freezing)
-<p align="center">
-<img src="Media/find_spell_db_progress.gif?raw=true" alt="Find Spell" width="256"/>
-</p>
-
-**Minimap Button:**
-- Quick-toggle for proximity/battleground alerts (Shift+Click, Ctrl+Click)
-- Animated hover effects and state-based icons
-- Draggable with persistent positioning
-<p align="center">
-<img src="Media/minimap_anim.gif?raw=true" alt="Minimap Anim" width="32"/>
-</p>
-
-**Performance Optimizations:**
-- Persistent class cache (survives sessions) for battleground/proximity alerts
-- Negative lookup cache (5s TTL) reduces repeated unit frame scans
-- Lazy cache cleanup (O(1) per access vs O(n) periodic sweeps)
-- Combat-aware taint protection (chat alerts suppressed during combat)
-
-**Bug Fixes:**
-- Fixed typo: `aruaApplied` → `auraApplied` in combat log event handling
-- Fixed proximity toast click errors during combat/non-combat state transitions
-- Fixed chat group output channel handling (e.g., `/s` for stealth messages)
+**Configuration**: `/sa` -> Proximity Alerts tab
+**Commands**: `/satoast test` (preview), `/satoast status` (metrics)
 
 ---
 
-## Key Features
+### Battleground Alerts - Objective Tracking
+Team-aware CTF tracking for WSG and Eye of the Storm. 
+<p align="center">
+<img src="Media/toast_bg_flagpickup.gif?raw=true" alt="BG Flag Alerts" width="256"/>
+</p>
+**Features:**
+* Automatic team detection for mixed-faction BGs
+* Class identification via combat log
+* Visual flag status indicators
+* Persistent class caching
+* <10ms processing per event
 
-**Voice Alerts:** 450+ critical spell callouts (defensives, CC, interrupts, cooldowns)
-**Proximity Alerts:** Visual toasts + audio alerts for nearby enemies with instant targeting
-**Battleground Alerts:** Flag event detection (WSG, EOTS) with team-aware filtering
-**Resource Bars:** Unified Health/Mana/Energy/Rage/Combo tracking for Feral Druids
-**Spell Finder:** Search 12,000+ spells with tooltips and IDs (Developer Tools tab)
-**Chat Integration:** Auto-announce CC, interrupts, cooldowns to party/raid/battleground
-**Ascension Support:** Auto-detects retail and 11-prefixed spell IDs
-**Dual Language:** English and Spanish voice packs included
+**Configuration**: `/sa` -> Battleground Alerts tab
+**Commands**: `/saflag myteam` (team check), `/saflag metrics` (stats)
+
+---
+
+### Resource Bars - Power Tracking
+Unified bars for Health, Mana, Energy, Rage, and Combo Points.
+<p align="center">
+<img src="Media/resource_mgt.gif?raw=true" alt="Resource Mgt" width="256"/>
+</p>
+**Features:**
+* Feral Druid form-switching support
+* Smooth animations
+* Zero-taint implementation
+* Position memory per profile
+
+**Configuration**: `/sa` -> Resource Bars tab
+
+---
+
+### Casting Bars - Accurate Timing
+Cast bars for Player, Target, and Focus units.
+
+**Features:**
+* Millisecond accuracy
+* Channeled and mid-cast targeting support
+* Interrupt flash effects
+* Independent unit toggles
+
+**Configuration**: `/sa` -> Casting Bars tab
+
+---
+
+### Spell Tracker - Aura Management
+Icon-based tracking for buffs, debuffs, and cooldowns.
+<p align="center">
+<img src="Media/spell_tracker.gif?raw=true" alt="Spell Tracker" width="256"/>
+</p>
+**Features:**
+* Simultaneous player and target tracking
+* Cooldown spiral animations
+* Duration overlays
+* Customizable icon sizing
+
+**Configuration**: `/sa` -> Spell Tracker tab
+
+---
+
+### Spell Finder - Database Access
+Search 12,000+ spells instantly for IDs and tooltip data.
+<p align="center">
+<img src="Media/find_spell_db_progress.gif?raw=true" alt="Find Spell" width="256"/>
+</p>
+**Features:**
+* <1ms search response
+* Retail and 11-prefixed ID support
+* Non-blocking database build
+* Data export functionality
+
+**Configuration**: `/sa` -> Developer Tools tab
+
+---
+
+### Statistics - Combat Intelligence
+Encounter statistics and danger ratings.
+
+**Features:**
+* Per-encounter data
+* Alert frequency tracking
+* Enemy danger ratings
+* Session summaries
 
 ---
 
 ## Getting Started
 
 ### Installation
-1.  **Download** the latest release
-2.  **Extract** the `SoundAlerter` folder to your WoW AddOns directory (`.../Interface/AddOns/`)
-3.  **Restart WoW** or use the `/reload` command in-game
+1. Download the latest release.
+2. Extract the `SoundAlerter` folder to `World of Warcraft/Interface/AddOns/`.
+3. Launch WoW and check the minimap button (alternatively use shift and ctrl clicks to shortcut proximity and battleground alerts).
+ 
+<p align="center">
+<img src="Media/minimap_anim.gif?raw=true" alt="Minimap Anim" width="32"/>
+</p>
 
 ### Quick Setup
-1.  Type `/sa` in-game (or click the Minimap Button)
-2.  Follow the steps in the **Quick Start** tab (set zones, alert scope, and audio)
-3.  Enter an Arena or Battleground to immediately hear the voice alerts
+1. Type `/sa`.
+2. Go to **Quick Start** tab.
+3. Select combat zones (Arena, BGs, World).
+4. Choose alert scope.
+5. Test audio via preview.
 
 ---
 
-## Advanced Usage
+## Performance Metrics
 
-| Feature | Tab Location | Description |
+| Metric | Value | Details |
 | :--- | :--- | :--- |
-| **Customize Voice Alerts** | **Voice Alerts** tab | Toggle and fine-tune the 450+ spell alerts by class and intent |
-| **Proximity Tuning** | **Proximity Alerts** tab | Adjust distance threshold, choose output (voice or toasts), enable click-to-target/focus |
-| **Battleground Alerts** | **Battleground Alerts** tab | Configure flag event audio, toasts, chat alerts, and team filtering |
-| **Resource Bars** | **Resource Bars** tab | Enable/customize Health, Mana, Energy, Rage, and Combo Point bars |
-| **Statistics** | **Statistics** tab | View alert tracking by category, zone, and top spells |
-| **Create Custom Alerts** | **Advanced** tab | Define your own rules for specific in-game events |
-| **Chat Integration** | **Voice Alerts** tab > **Chat Alerts** | Enable multi-channel output to alert teammates of CC, interrupts, and cooldowns |
-| **Find Spell IDs** | **Developer Tools** tab | Use this tool to quickly find spell IDs for creating new custom alerts |
-| **Performance Stats** | **In-Game Commands** | `/sa stats` (class detection), `/saflag metrics` (battleground), `/satoast status` (proximity) |
+| Alert Latency | <1ms | Optimized combat log parsing |
+| Memory Footprint | ~485 KB | String interning and LRU caching |
+| Toast Targeting | <1ms | Pre-built unit scan lists |
+| Flag Processing | P99 <10ms | Event-driven class caching |
+| Spell Search | <1ms | Multi-level indexing |
 
 ---
 
-## Performance & Technical Details
+## Command Reference
 
-| Metric | Detail | Technical Feature |
-| :--- | :--- | :--- |
-| **Initial Load** | ~3.5 seconds (first login) | Database build with string interning & multi-level indexing |
-| **Subsequent Load** | ~2 seconds | Loads from SavedVariables persistence & LRU caching |
-| **Search Speed** | <1ms | Advanced indexing for spell database |
-| **Memory Usage** | ~485 KB | Extremely low memory footprint |
-| **Spell Scanning** | Non-blocking (70,000 IDs in chunks) | Prevents game freezes; uses `GetSpellInfo()` and `GameTooltip` |
-| **Toast Click Latency** | <1ms (common case) | Optimized targeting with pre-built unit scan lists and cached combat state |
-| **Flag Alert Processing** | P99: <10ms | Event-driven with persistent class cache and lazy cleanup |
-| **Proximity Cache** | 60s TTL (temporary) + persistent (disk-saved) | Dual-tier caching with automatic eviction |
-| **Development** | N/A | New features merged to `develop` branch first, then `main` |
-
----
-
-## In-Game Commands
-
-| Command | Description |
+| Command | Action |
 | :--- | :--- |
-| `/sa` | Open options menu |
-| `/sa stats` | Show class detection performance stats |
-| `/saflag metrics` | Show battleground alert performance metrics |
-| `/saflag cache` | Show battleground class cache size |
-| `/saflag myteam` | Show your current team assignment (mixed-faction BGs) |
-| `/satoast test` | Show test proximity toast |
-| `/satoast status` | Show proximity toast system performance metrics |
+| `/sa` | Main options panel |
+| `/satoast test` | Show test proximity alert |
+| `/satoast status` | Proximity performance metrics |
+| `/saflag myteam` | Current BG team assignment |
+| `/saflag metrics` | Flag alert performance stats |
+| `/saflag cache` | Class cache efficiency |
+| `/sa stats` | Class detection statistics |
+
+---
+
+## Technical Highlights
+
+* **Framework**: Built on Ace3 (AceAddon, AceEvent, AceDB, AceConfig, AceGUI).
+* **Zero-Taint**: Uses secure APIs to prevent combat blocking.
+* **Ascension-Native**: Handles both retail and 11-prefixed spell IDs.
+* **Event-Driven**: Hooks `COMBAT_LOG_EVENT_UNFILTERED` for reliability.
+* **Profiles**: Supports per-character configuration and export.
+
+---
+
+## Credits
+
+**Authors**: Trolololol, Abatorlos, Duskashes, Superk
+**Ascension Dev**: th3pajay
+**Inspiration**: LootCollector (Toasts), Spy-Bronzebeard (Proximity)
 
 ---
 
 ## License
-
-MIT License
-
----
-
-## Shoutout
-Respect and admiration to these developers for their ingenuity and inspiration:
-* https://github.com/mmobrain/LootCollector/tree/main
-* https://github.com/MCribari/Spy-Bronzebeard
+MIT License - Open for use, modification, and distribution.
 
 Fair winds, fellow adventurers!
 *th3pajay / Starmistx - An old feral (https://warcraftmovies.com/pv.php?t=3&l=pajay)*

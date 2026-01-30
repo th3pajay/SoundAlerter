@@ -25,15 +25,74 @@ local CP_CONTAINER_WIDTH = 280
 local CP_HEIGHT = 30
 local CP_SPACING = 8
 
-local TEXT_UPDATE_THROTTLE = 0.05
-local VALUE_UPDATE_THROTTLE = 0.016  -- 60 FPS for smooth continuous energy regen
-local ENERGY_UPDATE_THROTTLE = 0.01  -- 100 FPS for ultra-smooth energy display
+local VALUE_UPDATE_THROTTLE = 0.016
+local ENERGY_UPDATE_THROTTLE = 0.01
 local ANIMATION_UPDATE_THROTTLE = 0.016
 local LOW_POWER_PULSE_FREQ = 3
 local OVERCAP_GLOW_FREQ = 4
 local CP_PULSE_SCALE = 0.25
 local CP_FULL_SCALE = 0.4
 local TWO_PI = math_pi * 2
+
+-- Combo Point Animation Constants
+local CP_DEFAULT_SCALE = 1.0
+local CP_BOUNCE_AMOUNT = 0.15
+local CP_CELEBRATION_BOUNCE = 0.25
+local CP_BOUNCE_DURATION = 0.2
+local CP_CELEBRATION_DURATION = 0.6
+local CP_CELEBRATION_WAVE_DELAY = 0.08
+local CP_CELEBRATION_CP_DURATION = 0.4
+
+local BAR_CONFIGS = {
+	energy = {
+		key = "energy",
+		globalName = "SoundAlerterResourceBar_Energy",
+		powerType = POWER_TYPE_ENERGY,
+		defaultY = -120,
+		updateFreq = ENERGY_UPDATE_THROTTLE,
+		textFormat = "number",
+		getValueFunc = function() return UnitPower("player", POWER_TYPE_ENERGY), UnitPowerMax("player", POWER_TYPE_ENERGY) end,
+		shouldUpdate = function(self, current, lastValue) return current ~= lastValue end,
+		continuousUpdate = true,
+		events = {"UNIT_POWER", "UNIT_MAXPOWER", "PLAYER_ENTERING_WORLD"}
+	},
+	rage = {
+		key = "rage",
+		globalName = "SoundAlerterResourceBar_Rage",
+		powerType = POWER_TYPE_RAGE,
+		defaultY = -120,
+		updateFreq = VALUE_UPDATE_THROTTLE,
+		textFormat = "number",
+		getValueFunc = function() return UnitPower("player", POWER_TYPE_RAGE), UnitPowerMax("player", POWER_TYPE_RAGE) end,
+		shouldUpdate = function(self, current, lastValue) return current ~= lastValue end,
+		continuousUpdate = false,
+		events = {"UNIT_POWER", "UNIT_MAXPOWER", "PLAYER_ENTERING_WORLD"}
+	},
+	health = {
+		key = "health",
+		globalName = "SoundAlerterResourceBar_Health",
+		powerType = nil,
+		defaultY = -140,
+		updateFreq = VALUE_UPDATE_THROTTLE,
+		textFormat = "percent",
+		getValueFunc = function() return UnitHealth("player"), UnitHealthMax("player") end,
+		shouldUpdate = function(self, current, lastValue) return current ~= lastValue end,
+		continuousUpdate = false,
+		events = {"UNIT_HEALTH", "UNIT_MAXHEALTH", "PLAYER_ENTERING_WORLD"}
+	},
+	mana = {
+		key = "mana",
+		globalName = "SoundAlerterResourceBar_Mana",
+		powerType = POWER_TYPE_MANA,
+		defaultY = -100,
+		updateFreq = VALUE_UPDATE_THROTTLE,
+		textFormat = "percent",
+		getValueFunc = function() return UnitPower("player", POWER_TYPE_MANA), UnitPowerMax("player", POWER_TYPE_MANA) end,
+		shouldUpdate = function(self, current, lastValue) return current ~= lastValue end,
+		continuousUpdate = false,
+		events = {"UNIT_POWER", "UNIT_MAXPOWER", "PLAYER_ENTERING_WORLD"}
+	}
+}
 
 function ResourceBar:Initialize()
 	self.db = SoundAlerter.db1.profile.resourceBar
@@ -60,6 +119,12 @@ function ResourceBar:Initialize()
 		combo = ""
 	}
 
+	-- Animation state tracking
+	self.cpAnimationState = {
+		running = {},      -- Track which CPs have running animations
+		celebration = false -- Track if celebration is running
+	}
+
 	-- Throttle timers
 	self.updateTimers = {
 		energy = 0,
@@ -72,13 +137,19 @@ function ResourceBar:Initialize()
 	-- Pre-formatted combo text strings
 	self.comboStrings = {"0/5", "1/5", "2/5", "3/5", "4/5", "5/5"}
 
-	-- Screen dimensions cache
+	self.percentStrings = {}
+	for i = 0, 100 do
+		self.percentStrings[i] = string.format("%.0f%%", i)
+	end
+
+	self.cachedTime = 0
+
 	self.screenWidth, self.screenHeight = UIParent:GetSize()
 
-	self:CreateEnergyFrame()
-	self:CreateRageFrame()
-	self:CreateHealthFrame()
-	self:CreateManaFrame()
+	for barKey, config in pairs(BAR_CONFIGS) do
+		self:CreateResourceBar(barKey, config)
+	end
+
 	self:CreateCPFrame()
 	self:CreateCPTextFrame()
 	self:RegisterEvents()
@@ -103,273 +174,154 @@ function ResourceBar:CacheColors()
 end
 
 function ResourceBar:SaveEnergyPosition()
-	if not self.energyFrame then return end
-	local x, y = self.energyFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.energyPositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.energyPositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.energyFrame, SoundAlerter.db1.profile.resourceBar, "energy")
 end
 
 function ResourceBar:SaveRagePosition()
-	if not self.rageFrame then return end
-	local x, y = self.rageFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.ragePositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.ragePositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.rageFrame, SoundAlerter.db1.profile.resourceBar, "rage")
 end
 
 function ResourceBar:SaveHealthPosition()
-	if not self.healthFrame then return end
-	local x, y = self.healthFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.healthPositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.healthPositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.healthFrame, SoundAlerter.db1.profile.resourceBar, "health")
 end
 
 function ResourceBar:SaveManaPosition()
-	if not self.manaFrame then return end
-	local x, y = self.manaFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.manaPositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.manaPositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.manaFrame, SoundAlerter.db1.profile.resourceBar, "mana")
 end
 
 function ResourceBar:SaveComboPosition()
-	if not self.comboFrame then return end
-	local x, y = self.comboFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.comboPositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.comboPositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.comboFrame, SoundAlerter.db1.profile.resourceBar, "combo")
 end
 
 function ResourceBar:SaveComboTextPosition()
-	if not self.comboTextFrame then return end
-	local x, y = self.comboTextFrame:GetCenter()
-	if not x or not y then return end
-
-	SoundAlerter.db1.profile.resourceBar.comboTextPositionX = x - (self.screenWidth / 2)
-	SoundAlerter.db1.profile.resourceBar.comboTextPositionY = y - (self.screenHeight / 2)
+	SoundAlerter.BarUtils:SavePosition(self.comboTextFrame, SoundAlerter.db1.profile.resourceBar, "comboText")
 end
 
-function ResourceBar:CreateEnergyFrame()
-	self.energyFrame = CreateFrame("Frame", "SoundAlerterResourceBar_Energy", UIParent)
-	self.energyFrame:SetSize(BAR_WIDTH + 20, BAR_HEIGHT + 20)
-	self.energyFrame:SetFrameStrata("MEDIUM")
-	self.energyFrame:SetFrameLevel(10)
-	self.energyFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
-	self.energyFrame:SetMovable(true)
-	self.energyFrame:EnableMouse(true)
-	self.energyFrame:RegisterForDrag("LeftButton")
-
-	self.energyFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
-		end
-	end)
-
-	self.energyFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
-		self:SaveEnergyPosition()
-	end)
-
-	self.energyBar = CreateFrame("StatusBar", nil, self.energyFrame)
-	self.energyBar:SetSize(BAR_WIDTH, BAR_HEIGHT)
-	self.energyBar:SetPoint("CENTER")
-	self.energyBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.energyBar:GetStatusBarTexture():SetHorizTile(false)
-	self.energyBar:SetMinMaxValues(0, 100)
-	self.energyBar:SetValue(0)
-
-	self.energyBar.bg = self.energyBar:CreateTexture(nil, "BACKGROUND")
-	self.energyBar.bg:SetAllPoints()
-	self.energyBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.energyBar.bg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
-
-	self.energyBar:SetBackdrop({
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 12,
-		insets = {left = 2, right = 2, top = 2, bottom = 2}
-	})
-	self.energyBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-
-	self.energyText = self.energyBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.energyText:SetPoint("CENTER")
-	self.energyText:SetText("0")
-
-	self.energyBar.glow = self.energyBar:CreateTexture(nil, "BACKGROUND")
-	self.energyBar.glow:SetAllPoints(self.energyFrame)
-	self.energyBar.glow:SetTexture("Interface\\FullScreenTextures\\LowHealth")
-	self.energyBar.glow:SetBlendMode("ADD")
-	self.energyBar.glow:SetAlpha(0)
-
-	self.energyFrame:Hide()
+function ResourceBar:SaveBarPosition(barKey)
+	local frameName = barKey .. "Frame"
+	SoundAlerter.BarUtils:SavePosition(self[frameName], SoundAlerter.db1.profile.resourceBar, barKey)
 end
 
-function ResourceBar:CreateRageFrame()
-	self.rageFrame = CreateFrame("Frame", "SoundAlerterResourceBar_Rage", UIParent)
-	self.rageFrame:SetSize(BAR_WIDTH + 20, BAR_HEIGHT + 20)
-	self.rageFrame:SetFrameStrata("MEDIUM")
-	self.rageFrame:SetFrameLevel(10)
-	self.rageFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
-	self.rageFrame:SetMovable(true)
-	self.rageFrame:EnableMouse(true)
-	self.rageFrame:RegisterForDrag("LeftButton")
+function ResourceBar:CreateResourceBar(barKey, config)
+	local frameName = barKey .. "Frame"
+	local barName = barKey .. "Bar"
+	local textName = barKey .. "Text"
 
-	self.rageFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
-		end
+	self[frameName] = CreateFrame("Frame", config.globalName, UIParent)
+	self[frameName]:SetSize(BAR_WIDTH + 20, BAR_HEIGHT + 20)
+	self[frameName]:SetFrameStrata("MEDIUM")
+	self[frameName]:SetFrameLevel(10)
+	self[frameName]:SetPoint("CENTER", UIParent, "CENTER", 0, config.defaultY)
+
+	SoundAlerter.BarUtils:MakeDraggable(self[frameName], self.db, function()
+		self:SaveBarPosition(barKey)
 	end)
 
-	self.rageFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
-		self:SaveRagePosition()
-	end)
+	self[barName] = CreateFrame("StatusBar", nil, self[frameName])
+	self[barName]:SetSize(BAR_WIDTH, BAR_HEIGHT)
+	self[barName]:SetPoint("CENTER")
+	self[barName]:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	self[barName]:GetStatusBarTexture():SetHorizTile(false)
+	self[barName]:SetMinMaxValues(0, 100)
+	self[barName]:SetValue(config.textFormat == "percent" and 100 or 0)
 
-	self.rageBar = CreateFrame("StatusBar", nil, self.rageFrame)
-	self.rageBar:SetSize(BAR_WIDTH, BAR_HEIGHT)
-	self.rageBar:SetPoint("CENTER")
-	self.rageBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.rageBar:GetStatusBarTexture():SetHorizTile(false)
-	self.rageBar:SetMinMaxValues(0, 100)
-	self.rageBar:SetValue(0)
+	self[barName].bg = self[barName]:CreateTexture(nil, "BACKGROUND")
+	self[barName].bg:SetAllPoints()
+	self[barName].bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	self[barName].bg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
 
-	self.rageBar.bg = self.rageBar:CreateTexture(nil, "BACKGROUND")
-	self.rageBar.bg:SetAllPoints()
-	self.rageBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.rageBar.bg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
+	SoundAlerter.BarUtils:CreateBackdrop(self[barName], 0.5, 0.5, 0.5, 1)
 
-	self.rageBar:SetBackdrop({
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 12,
-		insets = {left = 2, right = 2, top = 2, bottom = 2}
-	})
-	self.rageBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+	self[textName] = self[barName]:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	self[textName]:SetPoint("CENTER")
+	self[textName]:SetText(config.textFormat == "percent" and "100%" or "0")
 
-	self.rageText = self.rageBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.rageText:SetPoint("CENTER")
-	self.rageText:SetText("0")
+	self[barName].glow = self[barName]:CreateTexture(nil, "BACKGROUND")
+	self[barName].glow:SetAllPoints(self[frameName])
+	self[barName].glow:SetTexture("Interface\\FullScreenTextures\\LowHealth")
+	self[barName].glow:SetBlendMode("ADD")
+	self[barName].glow:SetAlpha(0)
 
-	self.rageBar.glow = self.rageBar:CreateTexture(nil, "BACKGROUND")
-	self.rageBar.glow:SetAllPoints(self.rageFrame)
-	self.rageBar.glow:SetTexture("Interface\\FullScreenTextures\\LowHealth")
-	self.rageBar.glow:SetBlendMode("ADD")
-	self.rageBar.glow:SetAlpha(0)
-
-	self.rageFrame:Hide()
+	self[frameName]:Hide()
 end
 
-function ResourceBar:CreateHealthFrame()
-	self.healthFrame = CreateFrame("Frame", "SoundAlerterResourceBar_Health", UIParent)
-	self.healthFrame:SetSize(BAR_WIDTH + 20, BAR_HEIGHT + 20)
-	self.healthFrame:SetFrameStrata("MEDIUM")
-	self.healthFrame:SetFrameLevel(10)
-	self.healthFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -140)
-	self.healthFrame:SetMovable(true)
-	self.healthFrame:EnableMouse(true)
-	self.healthFrame:RegisterForDrag("LeftButton")
+function ResourceBar:ApplyLowPowerAnimation(bar, percent, color, time)
+	if percent < 25 then
+		local animTime = (time * 2) % TWO_PI
+		local pulse = 0.7 + (math_sin(animTime) * 0.3)
+		local vibrate = math_sin(time * 8) * 0.15
 
-	self.healthFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
+		if color then
+			bar:SetStatusBarColor(color.r * pulse, color.g * pulse, color.b * pulse)
 		end
-	end)
-
-	self.healthFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
-		self:SaveHealthPosition()
-	end)
-
-	self.healthBar = CreateFrame("StatusBar", nil, self.healthFrame)
-	self.healthBar:SetSize(BAR_WIDTH, BAR_HEIGHT)
-	self.healthBar:SetPoint("CENTER")
-	self.healthBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.healthBar:GetStatusBarTexture():SetHorizTile(false)
-	self.healthBar:SetMinMaxValues(0, 100)
-	self.healthBar:SetValue(100)
-
-	self.healthBar.bg = self.healthBar:CreateTexture(nil, "BACKGROUND")
-	self.healthBar.bg:SetAllPoints()
-	self.healthBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.healthBar.bg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
-
-	self.healthBar:SetBackdrop({
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 12,
-		insets = {left = 2, right = 2, top = 2, bottom = 2}
-	})
-	self.healthBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-
-	self.healthText = self.healthBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.healthText:SetPoint("CENTER")
-	self.healthText:SetText("100%")
-
-	self.healthBar.glow = self.healthBar:CreateTexture(nil, "BACKGROUND")
-	self.healthBar.glow:SetAllPoints(self.healthFrame)
-	self.healthBar.glow:SetTexture("Interface\\FullScreenTextures\\LowHealth")
-	self.healthBar.glow:SetBlendMode("ADD")
-	self.healthBar.glow:SetAlpha(0)
-
-	self.healthFrame:Hide()
+		bar:SetBackdropBorderColor(0.8 + vibrate, 0.3 + vibrate, 0.3 + vibrate, 1)
+	else
+		if color then
+			bar:SetStatusBarColor(color.r, color.g, color.b)
+		end
+		bar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+	end
 end
 
-function ResourceBar:CreateManaFrame()
-	self.manaFrame = CreateFrame("Frame", "SoundAlerterResourceBar_Mana", UIParent)
-	self.manaFrame:SetSize(BAR_WIDTH + 20, BAR_HEIGHT + 20)
-	self.manaFrame:SetFrameStrata("MEDIUM")
-	self.manaFrame:SetFrameLevel(10)
-	self.manaFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -100)
-	self.manaFrame:SetMovable(true)
-	self.manaFrame:EnableMouse(true)
-	self.manaFrame:RegisterForDrag("LeftButton")
-
-	self.manaFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
+function ResourceBar:ApplyOvercapAnimation(bar, percent, color, time)
+	if percent >= 95 then
+		local animTime = (time * 0.5) % TWO_PI
+		local glowPulse = math_sin(animTime) * 0.5 + 0.5
+		if bar.glow and color then
+			bar.glow:SetAlpha(glowPulse * 0.4)
+			bar.glow:SetVertexColor(color.r, color.g, color.b, glowPulse * 0.4)
 		end
-	end)
+	else
+		if bar.glow then
+			bar.glow:SetAlpha(0)
+		end
+	end
+end
 
-	self.manaFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
-		self:SaveManaPosition()
-	end)
+function ResourceBar:UpdateResourceBar(barKey, config)
+	local barName = barKey .. "Bar"
+	local textName = barKey .. "Text"
+	local bar = self[barName]
 
-	self.manaBar = CreateFrame("StatusBar", nil, self.manaFrame)
-	self.manaBar:SetSize(BAR_WIDTH, BAR_HEIGHT)
-	self.manaBar:SetPoint("CENTER")
-	self.manaBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.manaBar:GetStatusBarTexture():SetHorizTile(false)
-	self.manaBar:SetMinMaxValues(0, 100)
-	self.manaBar:SetValue(100)
+	if not bar then return end
 
-	self.manaBar.bg = self.manaBar:CreateTexture(nil, "BACKGROUND")
-	self.manaBar.bg:SetAllPoints()
-	self.manaBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	self.manaBar.bg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
+	local current, max = config.getValueFunc()
 
-	self.manaBar:SetBackdrop({
-		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-		edgeSize = 12,
-		insets = {left = 2, right = 2, top = 2, bottom = 2}
-	})
-	self.manaBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+	if max == 0 then return end
 
-	self.manaText = self.manaBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	self.manaText:SetPoint("CENTER")
-	self.manaText:SetText("100%")
+	local shouldUpdate = config.shouldUpdate(self, current, self.lastValues[barKey])
 
-	self.manaBar.glow = self.manaBar:CreateTexture(nil, "BACKGROUND")
-	self.manaBar.glow:SetAllPoints(self.manaFrame)
-	self.manaBar.glow:SetTexture("Interface\\FullScreenTextures\\LowHealth")
-	self.manaBar.glow:SetBlendMode("ADD")
-	self.manaBar.glow:SetAlpha(0)
+	if shouldUpdate or config.continuousUpdate then
+		if shouldUpdate then
+			bar:SetMinMaxValues(0, max)
+			bar:SetValue(current)
 
-	self.manaFrame:Hide()
+			local newText
+			if config.textFormat == "percent" then
+				local percent = (current / max) * 100
+				local percentInt = math.floor(percent + 0.5)
+				newText = self.percentStrings[percentInt]
+			else
+				newText = tostring(current)
+			end
+
+			if newText ~= self.lastText[barKey] then
+				self[textName]:SetText(newText)
+				self.lastText[barKey] = newText
+			end
+
+			self.lastValues[barKey] = current
+		elseif config.continuousUpdate then
+			bar:SetValue(current)
+		end
+	end
+
+	local percent = (current / max) * 100
+	local color = self.cachedColors[barKey]
+	local time = self.cachedTime
+
+	self:ApplyLowPowerAnimation(bar, percent, color, time)
+	self:ApplyOvercapAnimation(bar, percent, color, time)
 end
 
 function ResourceBar:CreateCPFrame()
@@ -378,18 +330,9 @@ function ResourceBar:CreateCPFrame()
 	self.comboFrame:SetFrameStrata("MEDIUM")
 	self.comboFrame:SetFrameLevel(10)
 	self.comboFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -85)
-	self.comboFrame:SetMovable(true)
-	self.comboFrame:EnableMouse(true)
-	self.comboFrame:RegisterForDrag("LeftButton")
 
-	self.comboFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
-		end
-	end)
-
-	self.comboFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
+	-- Make draggable using BarUtils
+	SoundAlerter.BarUtils:MakeDraggable(self.comboFrame, self.db, function()
 		self:SaveComboPosition()
 	end)
 
@@ -468,18 +411,9 @@ function ResourceBar:CreateCPTextFrame()
 	self.comboTextFrame:SetFrameStrata("MEDIUM")
 	self.comboTextFrame:SetFrameLevel(11)
 	self.comboTextFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -50)
-	self.comboTextFrame:SetMovable(true)
-	self.comboTextFrame:EnableMouse(true)
-	self.comboTextFrame:RegisterForDrag("LeftButton")
 
-	self.comboTextFrame:SetScript("OnDragStart", function(frame)
-		if not self.db.locked then
-			frame:StartMoving()
-		end
-	end)
-
-	self.comboTextFrame:SetScript("OnDragStop", function(frame)
-		frame:StopMovingOrSizing()
+	-- Make draggable using BarUtils
+	SoundAlerter.BarUtils:MakeDraggable(self.comboTextFrame, self.db, function()
 		self:SaveComboTextPosition()
 	end)
 
@@ -582,235 +516,19 @@ function ResourceBar:PLAYER_ENTERING_WORLD()
 end
 
 function ResourceBar:UpdateEnergyBar()
-	if not self.energyBar then return end
-
-	local current = UnitPower("player", POWER_TYPE_ENERGY)
-	local max = UnitPowerMax("player", POWER_TYPE_ENERGY)
-
-	if max == 0 then return end
-
-	-- Always update bar value for continuous energy regeneration (private server)
-	-- But only update text if value actually changed to reduce string allocations
-	if current ~= self.lastValues.energy then
-		self.energyBar:SetMinMaxValues(0, max)
-		self.energyBar:SetValue(current)
-
-		local newText = tostring(current)
-		if newText ~= self.lastText.energy then
-			self.energyText:SetText(newText)
-			self.lastText.energy = newText
-		end
-
-		self.lastValues.energy = current
-	else
-		-- Even if value hasn't changed by whole numbers, update the bar
-		-- This ensures smooth sub-integer energy regeneration display
-		self.energyBar:SetValue(current)
-	end
-
-	local percent = (current / max) * 100
-	local color = self.cachedColors.energy
-	local time = GetTime()
-
-	if percent < 25 then
-		-- Use modulo to keep time in bounds (0 to 2*PI for sine wave)
-		local animTime = (time * 2) % TWO_PI
-		local pulse = 0.7 + (math_sin(animTime) * 0.3)
-		local vibrate = math_sin(time * 8) * 0.15
-
-		if color then
-			self.energyBar:SetStatusBarColor(color.r * pulse, color.g * pulse, color.b * pulse)
-		end
-		self.energyBar:SetBackdropBorderColor(0.8 + vibrate, 0.3 + vibrate, 0.3 + vibrate, 1)
-	else
-		if color then
-			self.energyBar:SetStatusBarColor(color.r, color.g, color.b)
-		end
-		self.energyBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-	end
-
-	if percent >= 95 then
-		local animTime = (time * 0.5) % TWO_PI
-		local glowPulse = math_sin(animTime) * 0.5 + 0.5
-		if self.energyBar.glow and color then
-			self.energyBar.glow:SetAlpha(glowPulse * 0.4)
-			self.energyBar.glow:SetVertexColor(color.r, color.g, color.b, glowPulse * 0.4)
-		end
-	else
-		if self.energyBar.glow then
-			self.energyBar.glow:SetAlpha(0)
-		end
-	end
+	self:UpdateResourceBar("energy", BAR_CONFIGS.energy)
 end
 
 function ResourceBar:UpdateRageBar()
-	if not self.rageBar then return end
-
-	local current = UnitPower("player", POWER_TYPE_RAGE)
-	local max = UnitPowerMax("player", POWER_TYPE_RAGE)
-
-	if max == 0 then return end
-
-	-- Only update if value changed
-	if current ~= self.lastValues.rage then
-		self.rageBar:SetMinMaxValues(0, max)
-		self.rageBar:SetValue(current)
-
-		local newText = tostring(current)
-		if newText ~= self.lastText.rage then
-			self.rageText:SetText(newText)
-			self.lastText.rage = newText
-		end
-
-		self.lastValues.rage = current
-	end
-
-	local percent = (current / max) * 100
-	local color = self.cachedColors.rage
-	local time = GetTime()
-
-	if percent < 25 then
-		local animTime = (time * 2) % TWO_PI
-		local pulse = 0.7 + (math_sin(animTime) * 0.3)
-		local vibrate = math_sin(time * 8) * 0.15
-
-		if color then
-			self.rageBar:SetStatusBarColor(color.r * pulse, color.g * pulse, color.b * pulse)
-		end
-		self.rageBar:SetBackdropBorderColor(0.8 + vibrate, 0.3 + vibrate, 0.3 + vibrate, 1)
-	else
-		if color then
-			self.rageBar:SetStatusBarColor(color.r, color.g, color.b)
-		end
-		self.rageBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-	end
-
-	if percent >= 95 then
-		local animTime = (time * 0.5) % TWO_PI
-		local glowPulse = math_sin(animTime) * 0.5 + 0.5
-		if self.rageBar.glow and color then
-			self.rageBar.glow:SetAlpha(glowPulse * 0.4)
-			self.rageBar.glow:SetVertexColor(color.r, color.g, color.b, glowPulse * 0.4)
-		end
-	else
-		if self.rageBar.glow then
-			self.rageBar.glow:SetAlpha(0)
-		end
-	end
+	self:UpdateResourceBar("rage", BAR_CONFIGS.rage)
 end
 
 function ResourceBar:UpdateHealthBar()
-	if not self.healthBar then return end
-
-	local current = UnitHealth("player")
-	local max = UnitHealthMax("player")
-
-	if max == 0 then return end
-
-	local percent = (current / max) * 100
-
-	-- Only update if value changed
-	if current ~= self.lastValues.health then
-		self.healthBar:SetMinMaxValues(0, max)
-		self.healthBar:SetValue(current)
-
-		local newText = string.format("%.0f%%", percent)
-		if newText ~= self.lastText.health then
-			self.healthText:SetText(newText)
-			self.lastText.health = newText
-		end
-
-		self.lastValues.health = current
-	end
-
-	local color = self.cachedColors.health
-	local time = GetTime()
-
-	if percent < 25 then
-		local animTime = (time * 2) % TWO_PI
-		local pulse = 0.7 + (math_sin(animTime) * 0.3)
-		local vibrate = math_sin(time * 8) * 0.15
-
-		if color then
-			self.healthBar:SetStatusBarColor(color.r * pulse, color.g * pulse, color.b * pulse)
-		end
-		self.healthBar:SetBackdropBorderColor(0.8 + vibrate, 0.3 + vibrate, 0.3 + vibrate, 1)
-	else
-		if color then
-			self.healthBar:SetStatusBarColor(color.r, color.g, color.b)
-		end
-		self.healthBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-	end
-
-	if percent >= 95 then
-		local animTime = (time * 0.5) % TWO_PI
-		local glowPulse = math_sin(animTime) * 0.5 + 0.5
-		if self.healthBar.glow and color then
-			self.healthBar.glow:SetAlpha(glowPulse * 0.4)
-			self.healthBar.glow:SetVertexColor(color.r, color.g, color.b, glowPulse * 0.4)
-		end
-	else
-		if self.healthBar.glow then
-			self.healthBar.glow:SetAlpha(0)
-		end
-	end
+	self:UpdateResourceBar("health", BAR_CONFIGS.health)
 end
 
 function ResourceBar:UpdateManaBar()
-	if not self.manaBar then return end
-
-	local current = UnitPower("player", POWER_TYPE_MANA)
-	local max = UnitPowerMax("player", POWER_TYPE_MANA)
-
-	if max == 0 then return end
-
-	local percent = (current / max) * 100
-
-	-- Only update if value changed
-	if current ~= self.lastValues.mana then
-		self.manaBar:SetMinMaxValues(0, max)
-		self.manaBar:SetValue(current)
-
-		local newText = string.format("%.0f%%", percent)
-		if newText ~= self.lastText.mana then
-			self.manaText:SetText(newText)
-			self.lastText.mana = newText
-		end
-
-		self.lastValues.mana = current
-	end
-
-	local color = self.cachedColors.mana
-	local time = GetTime()
-
-	if percent < 25 then
-		local animTime = (time * 2) % TWO_PI
-		local pulse = 0.7 + (math_sin(animTime) * 0.3)
-		local vibrate = math_sin(time * 8) * 0.15
-
-		if color then
-			self.manaBar:SetStatusBarColor(color.r * pulse, color.g * pulse, color.b * pulse)
-		end
-		self.manaBar:SetBackdropBorderColor(0.8 + vibrate, 0.3 + vibrate, 0.3 + vibrate, 1)
-	else
-		if color then
-			self.manaBar:SetStatusBarColor(color.r, color.g, color.b)
-		end
-		self.manaBar:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-	end
-
-	if percent >= 95 then
-		local animTime = (time * 0.5) % TWO_PI
-		local glowPulse = math_sin(animTime) * 0.5 + 0.5
-		if self.manaBar.glow and color then
-			self.manaBar.glow:SetAlpha(glowPulse * 0.4)
-			self.manaBar.glow:SetVertexColor(color.r, color.g, color.b, glowPulse * 0.4)
-		end
-	else
-		if self.manaBar.glow then
-			self.manaBar.glow:SetAlpha(0)
-		end
-	end
+	self:UpdateResourceBar("mana", BAR_CONFIGS.mana)
 end
 
 function ResourceBar:UpdateComboPoints()
@@ -818,6 +536,12 @@ function ResourceBar:UpdateComboPoints()
 
 	local cp = GetComboPoints("player", "target") or 0
 	local lastCP = self.lastComboPoints or 0
+
+	-- SAFETY: If combo points decreased, cancel all animations and reset scales
+	-- This handles target swapping gracefully
+	if cp < lastCP then
+		self:CancelAllCPAnimations()
+	end
 
 	-- Only update if combo points changed
 	if cp ~= lastCP then
@@ -857,29 +581,82 @@ function ResourceBar:UpdateComboPoints()
 	end
 end
 
+function ResourceBar:CancelCPAnimation(cpIndex)
+	local cp = self.comboPoints[cpIndex]
+	if not cp then return end
+
+	-- Clear OnUpdate handler
+	cp:SetScript("OnUpdate", nil)
+
+	-- Reset animation state
+	cp.bounceTime = nil
+	cp.bounceStart = nil
+
+	-- CRITICAL: Always reset to default scale
+	cp:SetScale(CP_DEFAULT_SCALE)
+
+	-- Reset visual effects
+	if cp.sparks then cp.sparks:SetAlpha(0) end
+	if cp.glow then cp.glow:SetAlpha(0) end
+	if cp.particles then cp.particles:SetAlpha(0) end
+
+	-- Clear tracking
+	if self.cpAnimationState then
+		self.cpAnimationState.running[cpIndex] = false
+	end
+end
+
+function ResourceBar:CancelAllCPAnimations()
+	-- Cancel individual CP animations
+	for i = 1, 5 do
+		self:CancelCPAnimation(i)
+	end
+
+	-- Cancel celebration animation
+	if self.comboFrame then
+		self.comboFrame:SetScript("OnUpdate", nil)
+		self.comboFrame.celebrationTime = nil
+	end
+
+	if self.cpAnimationState then
+		self.cpAnimationState.celebration = false
+	end
+end
+
 function ResourceBar:AnimateCPGain(cpIndex)
 	local cp = self.comboPoints[cpIndex]
 	if not cp then return end
 
-	local originalScale = cp:GetScale()
+	-- Cancel any existing animation on this CP first
+	self:CancelCPAnimation(cpIndex)
+
+	-- Mark animation as running
+	if self.cpAnimationState then
+		self.cpAnimationState.running[cpIndex] = true
+	end
 
 	cp:SetScript("OnUpdate", function(frame, elapsed)
 		if not frame.bounceTime then
 			frame.bounceTime = 0
-			frame.bounceStart = GetTime()
 		end
 
 		frame.bounceTime = frame.bounceTime + elapsed
-		local progress = frame.bounceTime / 0.2
+		local progress = frame.bounceTime / CP_BOUNCE_DURATION
 
 		if progress >= 1 then
-			frame:SetScale(originalScale)
+			-- CRITICAL: Always return to default scale constant
+			frame:SetScale(CP_DEFAULT_SCALE)
 			frame:SetScript("OnUpdate", nil)
 			frame.bounceTime = nil
-			frame.bounceStart = nil
+
 			if cp.sparks then cp.sparks:SetAlpha(0) end
+
+			-- Clear tracking
+			if self.cpAnimationState then
+				self.cpAnimationState.running[cpIndex] = false
+			end
 		else
-			local scale = originalScale + (math_sin(progress * math_pi) * 0.15)
+			local scale = CP_DEFAULT_SCALE + (math_sin(progress * math_pi) * CP_BOUNCE_AMOUNT)
 			frame:SetScale(scale)
 
 			if cp.sparks then
@@ -894,6 +671,16 @@ end
 function ResourceBar:Animate5CPCelebrationWave()
 	if not self.comboFrame then return end
 
+	-- Cancel all individual CP animations first to prevent conflicts
+	for i = 1, 5 do
+		self:CancelCPAnimation(i)
+	end
+
+	-- Mark celebration as running
+	if self.cpAnimationState then
+		self.cpAnimationState.celebration = true
+	end
+
 	if self.db.fullCPSound then
 		PlaySound("AuctionWindowClose")
 	end
@@ -904,10 +691,10 @@ function ResourceBar:Animate5CPCelebrationWave()
 		end
 
 		frame.celebrationTime = frame.celebrationTime + elapsed
-		local totalDuration = 0.6
-		local progress = frame.celebrationTime / totalDuration
+		local progress = frame.celebrationTime / CP_CELEBRATION_DURATION
 
 		if progress >= 1 then
+			-- Cleanup: Reset ALL combo points to default state
 			for i = 1, 5 do
 				local cp = self.comboPoints[i]
 				if cp then
@@ -920,7 +707,10 @@ function ResourceBar:Animate5CPCelebrationWave()
 					if cp.sparks then
 						cp.sparks:SetAlpha(0)
 					end
-					cp:SetScale(1.0)
+
+					-- CRITICAL: Always return to default scale constant
+					cp:SetScale(CP_DEFAULT_SCALE)
+
 					local color = self.cachedColors.comboMax
 					if color and cp.texture then
 						cp.texture:SetVertexColor(color.r, color.g, color.b, 1)
@@ -929,15 +719,21 @@ function ResourceBar:Animate5CPCelebrationWave()
 			end
 			frame:SetScript("OnUpdate", nil)
 			frame.celebrationTime = nil
+
+			-- Clear tracking
+			if self.cpAnimationState then
+				self.cpAnimationState.celebration = false
+			end
 		else
 			for i = 1, 5 do
 				local cp = self.comboPoints[i]
 				if cp then
-					local waveDelay = (i - 1) * 0.08
-					local cpProgress = (frame.celebrationTime - waveDelay) / 0.4
+					local waveDelay = (i - 1) * CP_CELEBRATION_WAVE_DELAY
+					local cpProgress = (frame.celebrationTime - waveDelay) / CP_CELEBRATION_CP_DURATION
 
 					if cpProgress > 0 and cpProgress < 1 then
-						local scale = 1.0 + (math_sin(cpProgress * math_pi) * 0.25)
+						-- Use constant for scale calculation
+						local scale = CP_DEFAULT_SCALE + (math_sin(cpProgress * math_pi) * CP_CELEBRATION_BOUNCE)
 						cp:SetScale(scale)
 
 						if cp.glow then
@@ -978,7 +774,8 @@ function ResourceBar:Animate5CPCelebrationWave()
 							end
 						end
 					elseif cpProgress >= 1 then
-						cp:SetScale(1.0)
+						-- CRITICAL: Always return to default scale constant
+						cp:SetScale(CP_DEFAULT_SCALE)
 						if cp.glow then
 							cp.glow:SetAlpha(0)
 						end
@@ -1003,51 +800,11 @@ function ResourceBar:ApplyBarTexture()
 	if not self.db then return end
 
 	local texture = self.db.barTexture or "default"
-	local texturePath = "Interface\\TargetingFrame\\UI-StatusBar"
 
-	if texture == "solid" then
-		texturePath = "Interface\\Buttons\\WHITE8X8"
-	elseif texture == "transparent" then
-		texturePath = "Interface\\Buttons\\WHITE8X8"
-	end
-
-	if self.energyBar then
-		self.energyBar:SetStatusBarTexture(texturePath)
-		self.energyBar.bg:SetTexture(texturePath)
-		if texture == "transparent" then
-			self.energyBar:SetAlpha(0.7)
-		else
-			self.energyBar:SetAlpha(1.0)
-		end
-	end
-
-	if self.rageBar then
-		self.rageBar:SetStatusBarTexture(texturePath)
-		self.rageBar.bg:SetTexture(texturePath)
-		if texture == "transparent" then
-			self.rageBar:SetAlpha(0.7)
-		else
-			self.rageBar:SetAlpha(1.0)
-		end
-	end
-
-	if self.healthBar then
-		self.healthBar:SetStatusBarTexture(texturePath)
-		self.healthBar.bg:SetTexture(texturePath)
-		if texture == "transparent" then
-			self.healthBar:SetAlpha(0.7)
-		else
-			self.healthBar:SetAlpha(1.0)
-		end
-	end
-
-	if self.manaBar then
-		self.manaBar:SetStatusBarTexture(texturePath)
-		self.manaBar.bg:SetTexture(texturePath)
-		if texture == "transparent" then
-			self.manaBar:SetAlpha(0.7)
-		else
-			self.manaBar:SetAlpha(1.0)
+	for barKey in pairs(BAR_CONFIGS) do
+		local barName = barKey .. "Bar"
+		if self[barName] then
+			SoundAlerter.BarUtils:ApplyBarTexture(self[barName], texture)
 		end
 	end
 end
@@ -1055,43 +812,30 @@ end
 function ResourceBar:LoadSettings()
 	if not self.db then return end
 
-	-- Update screen dimensions cache
 	self.screenWidth, self.screenHeight = UIParent:GetSize()
 
-	if self.energyFrame then
-		local x = (self.db.energyPositionX or 0) + (self.screenWidth / 2)
-		local y = (self.db.energyPositionY or -120) + (self.screenHeight / 2)
-		self.energyFrame:ClearAllPoints()
-		self.energyFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
-		self.energyFrame:SetScale(self.db.energyScale or 1.0)
-	end
+	for barKey, config in pairs(BAR_CONFIGS) do
+		local frameName = barKey .. "Frame"
+		local barName = barKey .. "Bar"
+		local frame = self[frameName]
 
-	if self.rageFrame then
-		local x = (self.db.ragePositionX or 0) + (self.screenWidth / 2)
-		local y = (self.db.ragePositionY or -120) + (self.screenHeight / 2)
-		self.rageFrame:ClearAllPoints()
-		self.rageFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
-		self.rageFrame:SetScale(self.db.rageScale or 1.0)
-	end
+		if frame then
+			local xKey = barKey .. "PositionX"
+			local yKey = barKey .. "PositionY"
+			local scaleKey = barKey .. "Scale"
 
-	if self.healthFrame then
-		local x = (self.db.healthPositionX or 0) + (self.screenWidth / 2)
-		local y = (self.db.healthPositionY or -140) + (self.screenHeight / 2)
-		self.healthFrame:ClearAllPoints()
-		self.healthFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
-		self.healthFrame:SetScale(self.db.healthScale or 1.0)
+			local x = (self.db[xKey] or 0) + (self.screenWidth / 2)
+			local y = (self.db[yKey] or config.defaultY) + (self.screenHeight / 2)
+			frame:ClearAllPoints()
+			frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
+			frame:SetScale(self.db[scaleKey] or 1.0)
 
-		local height = self.db.healthHeight or BAR_HEIGHT
-		self.healthBar:SetSize(BAR_WIDTH, height)
-		self.healthFrame:SetSize(BAR_WIDTH + 20, height + 20)
-	end
-
-	if self.manaFrame then
-		local x = (self.db.manaPositionX or 0) + (self.screenWidth / 2)
-		local y = (self.db.manaPositionY or -100) + (self.screenHeight / 2)
-		self.manaFrame:ClearAllPoints()
-		self.manaFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
-		self.manaFrame:SetScale(self.db.manaScale or 1.0)
+			if barKey == "health" then
+				local height = self.db.healthHeight or BAR_HEIGHT
+				self[barName]:SetSize(BAR_WIDTH, height)
+				frame:SetSize(BAR_WIDTH + 20, height + 20)
+			end
+		end
 	end
 
 	if self.comboFrame then
@@ -1110,69 +854,60 @@ function ResourceBar:LoadSettings()
 	end
 end
 
-function ResourceBar:StartEnergyUpdates()
-	if not self.energyFrame then return end
-	-- Energy needs very frequent updates for continuous regeneration on private servers
-	self.energyFrame:SetScript("OnUpdate", function(frame, elapsed)
-		self.updateTimers.energy = self.updateTimers.energy + elapsed
-		if self.updateTimers.energy >= ENERGY_UPDATE_THROTTLE then
-			self:UpdateEnergyBar()
-			self.updateTimers.energy = 0
+function ResourceBar:StartBarUpdates(barKey, config)
+	local frameName = barKey .. "Frame"
+	local frame = self[frameName]
+	if not frame then return end
+
+	frame:SetScript("OnUpdate", function(f, elapsed)
+		self.cachedTime = GetTime()
+		self.updateTimers[barKey] = self.updateTimers[barKey] + elapsed
+		if self.updateTimers[barKey] >= config.updateFreq then
+			self:UpdateResourceBar(barKey, config)
+			self.updateTimers[barKey] = 0
 		end
 	end)
+end
+
+function ResourceBar:StopBarUpdates(barKey)
+	local frameName = barKey .. "Frame"
+	local frame = self[frameName]
+	if not frame then return end
+
+	frame:SetScript("OnUpdate", nil)
+	self.updateTimers[barKey] = 0
+end
+
+function ResourceBar:StartEnergyUpdates()
+	self:StartBarUpdates("energy", BAR_CONFIGS.energy)
 end
 
 function ResourceBar:StopEnergyUpdates()
-	if not self.energyFrame then return end
-	self.energyFrame:SetScript("OnUpdate", nil)
-	self.updateTimers.energy = 0
+	self:StopBarUpdates("energy")
 end
 
 function ResourceBar:StartRageUpdates()
-	if not self.rageFrame then return end
-	-- Rage bar uses event-driven updates only (no smooth regeneration needed)
-	self.rageFrame:SetScript("OnUpdate", function(frame, elapsed)
-		-- Only animations run on update, values updated by events
-		self:UpdateRageBar()
-	end)
+	self:StartBarUpdates("rage", BAR_CONFIGS.rage)
 end
 
 function ResourceBar:StopRageUpdates()
-	if not self.rageFrame then return end
-	self.rageFrame:SetScript("OnUpdate", nil)
-	self.updateTimers.rage = 0
+	self:StopBarUpdates("rage")
 end
 
 function ResourceBar:StartHealthUpdates()
-	if not self.healthFrame then return end
-	-- Health bar uses event-driven updates with animations
-	self.healthFrame:SetScript("OnUpdate", function(frame, elapsed)
-		self:UpdateHealthBar()
-	end)
+	self:StartBarUpdates("health", BAR_CONFIGS.health)
 end
 
 function ResourceBar:StopHealthUpdates()
-	if not self.healthFrame then return end
-	self.healthFrame:SetScript("OnUpdate", nil)
-	self.updateTimers.health = 0
+	self:StopBarUpdates("health")
 end
 
 function ResourceBar:StartManaUpdates()
-	if not self.manaFrame then return end
-	-- Mana needs frequent updates for smooth regeneration display
-	self.manaFrame:SetScript("OnUpdate", function(frame, elapsed)
-		self.updateTimers.mana = self.updateTimers.mana + elapsed
-		if self.updateTimers.mana >= VALUE_UPDATE_THROTTLE then
-			self:UpdateManaBar()
-			self.updateTimers.mana = 0
-		end
-	end)
+	self:StartBarUpdates("mana", BAR_CONFIGS.mana)
 end
 
 function ResourceBar:StopManaUpdates()
-	if not self.manaFrame then return end
-	self.manaFrame:SetScript("OnUpdate", nil)
-	self.updateTimers.mana = 0
+	self:StopBarUpdates("mana")
 end
 
 function ResourceBar:StartComboUpdates()
@@ -1183,66 +918,31 @@ end
 
 function ResourceBar:StopComboUpdates()
 	if not self.comboFrame then return end
-	-- Clean up any running animations
-	for i = 1, 5 do
-		if self.comboPoints[i] then
-			self.comboPoints[i]:SetScript("OnUpdate", nil)
-		end
-	end
-	if self.comboFrame then
-		self.comboFrame:SetScript("OnUpdate", nil)
-	end
+
+	-- Use the new comprehensive cleanup function
+	self:CancelAllCPAnimations()
+
 	self.updateTimers.combo = 0
 end
 
 function ResourceBar:UpdateVisibility()
 	if not self.db then return end
 
-	if self.energyFrame then
-		if self.db.energyEnabled then
-			self.energyFrame:Show()
-			self.energyFrame:EnableMouse(not self.db.locked)
-			self:UpdateEnergyBar()
-			self:StartEnergyUpdates()
-		else
-			self.energyFrame:Hide()
-			self:StopEnergyUpdates()
-		end
-	end
+	for barKey, config in pairs(BAR_CONFIGS) do
+		local frameName = barKey .. "Frame"
+		local frame = self[frameName]
+		local enabledKey = barKey .. "Enabled"
 
-	if self.rageFrame then
-		if self.db.rageEnabled then
-			self.rageFrame:Show()
-			self.rageFrame:EnableMouse(not self.db.locked)
-			self:UpdateRageBar()
-			self:StartRageUpdates()
-		else
-			self.rageFrame:Hide()
-			self:StopRageUpdates()
-		end
-	end
-
-	if self.healthFrame then
-		if self.db.healthEnabled then
-			self.healthFrame:Show()
-			self.healthFrame:EnableMouse(not self.db.locked)
-			self:UpdateHealthBar()
-			self:StartHealthUpdates()
-		else
-			self.healthFrame:Hide()
-			self:StopHealthUpdates()
-		end
-	end
-
-	if self.manaFrame then
-		if self.db.manaEnabled then
-			self.manaFrame:Show()
-			self.manaFrame:EnableMouse(not self.db.locked)
-			self:UpdateManaBar()
-			self:StartManaUpdates()
-		else
-			self.manaFrame:Hide()
-			self:StopManaUpdates()
+		if frame then
+			if self.db[enabledKey] then
+				frame:Show()
+				frame:EnableMouse(not self.db.locked)
+				self:UpdateResourceBar(barKey, config)
+				self:StartBarUpdates(barKey, config)
+			else
+				frame:Hide()
+				self:StopBarUpdates(barKey)
+			end
 		end
 	end
 
