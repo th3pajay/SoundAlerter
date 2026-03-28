@@ -1,6 +1,6 @@
 # SoundAlerter - Complete PvP Combat Suite
 
-![Version](https://img.shields.io/badge/version-1.4.82-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg) ![Platform](https://img.shields.io/badge/platform-Ascension-purple.svg)
+![Version](https://img.shields.io/badge/version-1.4.85-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![WoW](https://img.shields.io/badge/WoW-3.3.5-orange.svg) ![Platform](https://img.shields.io/badge/platform-Ascension-purple.svg)
 
 **From Simple Alerts to Complete Combat Suite**
 Voice callouts evolved into a comprehensive PvP combat suite for WoW Ascension.
@@ -17,6 +17,11 @@ SoundAlerter is a combat system built for competitive PvP. Eight integrated modu
 **Ascension Support**: Native support for retail and 11-prefixed spell IDs. 
 
 ---
+
+---
+1.4.85 - Profile nil crash, flagToast nil - position, technical pre-checks fixed
+---
+
 
 ## The Complete Suite
 

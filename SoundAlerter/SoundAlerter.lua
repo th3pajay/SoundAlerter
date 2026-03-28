@@ -64,6 +64,7 @@ local function log(msg) DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF22SA|r:"..msg) en
 
 function SoundAlerter:ChangeProfile()
 	sadb = self.db1.profile
+	self:OnOptionsProfileChanged()
 
 	for k,v in SoundAlerter:IterateModules() do
 		if type(v.ChangeProfile) == 'function' then
