@@ -17,9 +17,8 @@ SoundAlerter is a combat system built for competitive PvP. Eight integrated modu
 **Ascension Support**: Native support for retail and 11-prefixed spell IDs. 
 
 ---
-
----
-1.4.85 - Profile nil crash, flagToast nil - position, technical pre-checks fixed
+**v1.4.85** 
+Profile nil crash, flagToast nil - position, technical pre-checks fixed
 ---
 
 
