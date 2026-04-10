@@ -182,6 +182,12 @@ function SpellTextureName(sid)
 	end
 end
 
+function SoundAlerter:OnOptionsProfileChanged()
+	sadb = self.db1.profile
+	sadb.custom = sadb.custom or {}
+	sadb.proximityToasts = sadb.proximityToasts or {}
+end
+
 function SoundAlerter:OnOptionsCreate()
 	sadb = self.db1.profile
 	self:AddOption("profiles", LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db1))
@@ -478,7 +484,7 @@ function SoundAlerter:OnOptionsCreate()
 								confirm = true,
 								confirmText = "Are you sure? This will remove all of your current sound alerts",
 								func = function()
-										sadb.custom = nil
+										sadb.custom = {}
 								end,
 							},
 							export = {
@@ -486,6 +492,7 @@ function SoundAlerter:OnOptionsCreate()
 								name = "Export encapsulation",
 								order = 2,
 								func = function()
+								if not sadb.custom or not next(sadb.custom) then sadb.exportbox = "@#" return end
 								local thisw = "@"
 										for k,css in pairs (sadb.custom) do
 											 thisw = thisw.."|"..css.name..","..css.soundfilepath..","..(css.spellid and css.spellid or "0")..","
@@ -4328,7 +4335,7 @@ function SoundAlerter:OnOptionsCreate()
 					desc = L["Menu entry for the spell (eg. Hex down on arena partner)"],
 					type = 'input',
 					set = function(info, value)
-						if sadb.custom[value] then log(L["same name already exists"]) return end
+						if sadb.custom[value] then SoundAlerter:Print(L["same name already exists"]) return end
 						sadb.custom[key].name = value
 						sadb.custom[key].order = 100
 						sadb.custom[value] = sadb.custom[key]
